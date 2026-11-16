@@ -58,7 +58,7 @@ Test runner: `cargo test`, `cargo fmt --all -- --check`, `cargo clippy --all-tar
 | T2 | S4 | delegated direct (worker) | done | `Frames` layer, validation, compose; 9 tests pass. |
 | T3 | S3 | inline (parent) | done | `src/import/video.rs`; 3 conditional FFmpeg video/GIF tests pass. |
 | T4 | S4 | inline (parent) | done | CLI `import`, scene builders and JSON; 13 CLI tests pass. |
-| T5 | S4, S5 | inline (parent) | done | README/ROADMAP/this document; full verification recorded in L3. |
+| T5 | S4, S5 | inline (parent) | done | README/ROADMAP/this document; full verification recorded in L3; CI green. |
 
 ## Log
 
@@ -89,4 +89,4 @@ Standing authorization from the previous delivery:
 - Manual video smoke: `import testsrc.mp4 --cols 20 --fps 5 --max-frames 3 --braille` produced 2 braille frames and a 320×236 GIF (9.9 KB).
 - Manual edges smoke: `--edges` produced `- / | \\` directional glyphs.
 - Release binary smoke: braille image import and PNG render succeeded.
-- CI remains pending because Phase 5 has not been pushed yet.
+- Phase 5 committed as `dd7656a` and `a3d0054`, pushed to `main`; GitHub Actions run 43927346245 is green.

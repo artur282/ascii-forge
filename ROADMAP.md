@@ -83,7 +83,7 @@ Completed in Phase 1:
 - `cargo build --release` — success.
 - Manual smoke: offline `promo` scene (90 frames, three effect ranges) rendered to a 1920×1080 PNG; OpenAI-compatible mock server exercised prompt mode, token usage, one vision revision and a cache hit with `cached: true` / `attempts: 0`.
 
-## Phase 5 — Media import — Implemented locally
+## Phase 5 — Media import — Done
 
 - [x] Image to ASCII: charsets, color, background, invert, dithering and Sobel edges.
 - [x] Braille mode using 2×4 pixels per cell and U+2800..U+28FF.
@@ -91,7 +91,7 @@ Completed in Phase 1:
 - [x] `Frames` scene layer with modulo playback and bounded validation.
 - [x] CLI `import`, JSON reports and documentation.
 - [x] Tests: image conversion, braille, color, dithering, edges, Frames layer and conditional FFmpeg video/GIF fixtures.
-- [ ] CI green after the Phase 5 push (pending user authorization).
+- [x] CI green after the Phase 5 push ([run 43927346245](https://github.com/artur282/ascii-forge/actions/runs/43927346245)).
 
 ### Phase 5 verification (2026-11-16)
 
@@ -101,6 +101,7 @@ Completed in Phase 1:
 - `cargo build --release` — success.
 - Manual image import: 40×11 color scene rendered to 640×325 PNG.
 - Manual video/GIF import: 2 braille frames rendered to a 320×236 GIF; `--edges` produced directional glyphs; release binary verified.
+- GitHub Actions run 43927346245: formatting, clippy, 293 tests and release build passed.
 
 ## Phase 6 — Ecosystem — Later
 

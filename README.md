@@ -2,7 +2,7 @@
 
 AI-driven ASCII art, images, GIFs and videos from the command line.
 
-> **Status:** Phase 5 is implemented locally; CI is green for Phases 1-4.
+> **Status:** Phases 1-5 are implemented on `main`; CI is green.
 > The scene format, text/FIGlet layers, static PNG/JPEG/ANSI/SVG rendering,
 > timeline/keyframe animation, deterministic effects, terminal preview, GIF
 > export, MP4/WebM video, audio muxing, voice-over, AI scene planning, offline
