@@ -50,7 +50,7 @@ Test runner: `cargo test` (unit + integration), `cargo fmt --all -- --check`, `c
 - `render --format gif` composes every frame through `compose_frame`, rasterizes it and streams it to the GIF encoder.
 - `render --frame N` selects a static frame for PNG/JPEG/SVG/ANSI/text; out-of-range frames fail clearly.
 - `preview` loads and validates the scene and calls the TUI module; `--json` is rejected with a clear message.
-- At Phase 2 time `generate` and `import` remained pending; `generate` shipped in Phase 4 and `import` remains Phase 5.
+- At Phase 2 time `generate` and `import` remained pending; `generate` shipped in Phase 4 and `import` shipped in Phase 5.
 
 ### S6 — Documentation and verification
 

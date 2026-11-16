@@ -180,7 +180,7 @@ ascii-forge/
 │   ├── scene/               # Scene, ScenePlan, validation, versioning
 │   ├── grid/                # Cell, Grid, rune width, ANSI parsing
 │   ├── figlet/              # figlet-rs wrapper + font catalog
-│   ├── image_import/        # image/video -> grid
+│   ├── import/              # image/video -> grid / Frames
 │   ├── timeline/            # keyframes, easing, beats
 │   ├── effect/              # deterministic effects
 │   ├── render/              # grid -> RGBA/PNG/SVG/ANSI
@@ -531,6 +531,17 @@ Read RGBA frames from stdout, convert each to a grid, then render/encode. `ffmpe
 ### 8.3 GIF → frames
 
 `gif` crate decoder, or FFmpeg. For simple imports, the crate is enough; for codec coverage, FFmpeg.
+
+### 8.4 Phase 5 implementation notes
+
+- `src/import/` uses `image` resizing and sRGB luminance (the linear-light idea
+  remains a possible quality improvement).
+- Transparent pixels are composited onto `--background` rather than dropped.
+- Sobel edges and Floyd–Steinberg dithering are implemented without extra
+  dependencies.
+- Video/GIF frames are decoded as raw RGBA, sampled at `--fps`, bounded by
+  `--max-frames`, and embedded in a `Frames` scene layer.
+- The scene JSON is self-contained; short clips are the intended first use.
 
 ---
 

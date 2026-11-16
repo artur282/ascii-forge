@@ -2,12 +2,12 @@
 
 AI-driven ASCII art, images, GIFs and videos from the command line.
 
-> **Status:** Phases 1-4 are implemented on `main`; CI is green.
+> **Status:** Phase 5 is implemented locally; CI is green for Phases 1-4.
 > The scene format, text/FIGlet layers, static PNG/JPEG/ANSI/SVG rendering,
 > timeline/keyframe animation, deterministic effects, terminal preview, GIF
 > export, MP4/WebM video, audio muxing, voice-over, AI scene planning, offline
-> templates, opt-in vision review, `generate`, `render`, `fonts` and `doctor`
-> are implemented. `import` remains a CLI skeleton.
+> templates, opt-in vision review, image/video import, `generate`, `render`,
+> `import`, `fonts` and `doctor` are implemented.
 >
 > See [docs/research.md](docs/research.md) for the investigation,
 > [docs/effects.md](docs/effects.md) for the effect catalog, and
@@ -95,8 +95,29 @@ frames. The model decides *what*; Rust decides *how*.
   `.ascii-forge/cache/vision/`, and a network or render failure keeps the
   original scene.
 
+### Image and video import
+
+- `import photo.png --cols 80 --color` converts a still image to a `Grid` scene.
+- Rows are derived from the source aspect and the scene cell aspect unless
+  `--rows` is given.
+- Charsets: `ascii` (` .:-=+*#%@`), `blocks` (` ░▒▓█`), `detailed`, or a custom
+  luminance ramp. `--invert`, `--background`, `--foreground`, `--dither` and
+  `--edges` are available. `--braille` cannot be combined with `--dither` or
+  `--edges`, and `--dither`/`--edges` are mutually exclusive.
+- `--braille` samples 2×4 pixels per cell and emits Unicode braille
+  U+2800..U+28FF.
+- Videos and GIFs decode through FFmpeg into a `Frames` layer; `--fps` and
+  `--max-frames` bound the sampled animation. The resulting scene renders to
+  GIF like any other timeline.
+- Imported scenes are self-contained JSON; keep `--max-frames` small for large
+  sources.
+
 ### CLI
 
+- `ascii-forge import photo.png --cols 80 --color --out photo.json` imports a
+  still image.
+- `ascii-forge import clip.gif --cols 60 --fps 12 --max-frames 60 --out clip.json`
+  imports an animated GIF.
 - `ascii-forge generate "retro terminal logo for NEBULA" --out scene.json`
   generates a scene through an OpenAI-compatible provider.
 - `ascii-forge generate --template promo --title NEBULA --tagline "navigate the noise"`
@@ -118,15 +139,14 @@ frames. The model decides *what*; Rust decides *how*.
 
 ## Planned
 
-- `import` for image/video to ASCII, including braille and dithering.
 - Advanced audio mixing (the current pass muxes one audio track).
 - MCP server and release packaging.
 
 ## Requirements
 
 - Rust 1.99 or newer (edition 2024).
-- FFmpeg 6 or newer with `libx264` and `libvpx-vp9` for video export, plus
-  `ffprobe` for validation tests.
+- FFmpeg 6 or newer with `libx264` and `libvpx-vp9` for video export and
+  video/GIF import, plus `ffprobe` for media probing and validation tests.
 - A monospace TTF font. DejaVu Sans Mono is the default.
 - `espeak-ng` is optional and only needed for `--voice`.
 - An API key only for AI prompt mode or `--vision`. Offline templates need no
@@ -149,6 +169,17 @@ A published binary and install script will be added in the packaging phase.
 Implemented today:
 
 ```bash
+# Import a still image (monochrome, color, braille, edges or dithering)
+ascii-forge import photo.png --cols 80 --out photo.json
+ascii-forge import photo.png --cols 100 --color --out photo-color.json
+ascii-forge import photo.png --cols 80 --braille --invert --out photo-braille.json
+ascii-forge import photo.png --cols 80 --edges --background 000000 --out edges.json
+
+# Import a short video or GIF; the scene can render to GIF/MP4/WebM
+ascii-forge import clip.gif --cols 60 --fps 12 --max-frames 60 --out clip.json
+ascii-forge import clip.mp4 --cols 80 --color --max-frames 120 --out clip.json
+ascii-forge render clip.json --format gif --out clip-ascii.gif
+
 # AI prompt mode: requires ASCII_FORGE_API_KEY or OPENAI_API_KEY
 export ASCII_FORGE_API_KEY="..."
 ascii-forge generate "retro terminal logo for NEBULA" --out scene.json
@@ -211,6 +242,10 @@ Offline template shapes:
 the global `--json`. Template mode uses `--title` as its required title and
 never calls the network.
 
+`import` flags: `--cols`, `--rows`, `--charset`, `--color`, `--braille`,
+`--dither`, `--edges`, `--invert`, `--background`, `--foreground`, `--fps`,
+`--max-frames`, `--ffmpeg-path`, `--ffprobe-path`, `--out` and `--json`.
+
 `--output` is accepted as an alias of `--out`. `preview` controls:
 
 | Key | Action |
@@ -219,14 +254,6 @@ never calls the network.
 | `Left` / `Right` | Step one frame |
 | `Home` / `End` | Jump to the first or last frame |
 | `q` / `Esc` | Quit |
-
-The import command is still a skeleton:
-
-```bash
-ascii-forge import input.png --cols 100 --color
-```
-
-It exits with `import is not implemented yet`.
 
 ## Scene format
 
@@ -332,19 +359,15 @@ directory. Pass `--no-cache` to bypass the response cache.
 ## Architecture
 
 ```text
-Prompt
-  │
-  ▼
-ScenePlan (LLM or template, validated)   ← implemented
-  │
-  ▼
-Compiler (Rust, deterministic)           ← implemented
-  │
-  ▼
-Scene (JSON, editable)                   ← implemented
-  │
-  ▼
-Timeline + effects → frames              ← implemented
+Image / video ── image / FFmpeg ──> ASCII Grid / Frames ──┐
+                                                          │
+Prompt ──> ScenePlan (LLM/template) ──> Compiler ──> Scene ┘
+                                                          │
+                                                          ▼
+                                             Scene (JSON, editable)
+                                                          │
+                                                          ▼
+                                             Timeline + effects → frames
   │
   ▼
 Renderer (grid of cells → frames)
@@ -378,11 +401,17 @@ resolves the grid, timing and keyframes.
 
 ## Limitations
 
-- `import` is a skeleton; image and video import are not implemented.
+- Image import quality depends on the source contrast and the selected charset.
+- Imported video frames are embedded in the scene JSON; use `--max-frames` for
+  large sources and render short slices. Imports are capped at 2,000,000 total
+  cells to keep memory and scene size bounded.
+- Video/GIF import requires `ffmpeg` and `ffprobe` on `PATH` or explicit paths.
+- The legacy `ImageLayer` JSON variant is not used by import and remains
+  unsupported in composition; import emits `Grid`/`Frames` layers instead.
+- Braille output depends on the selected raster font covering the braille block.
 - AI prompt mode needs an OpenAI-compatible provider and an API key. Output is
   model-dependent; the compiled scene is deterministic once written.
 - `--vision` adds latency and provider cost and is limited to one revision.
-- Image layers are not supported in rendering yet.
 - Audio muxing is MP4/AAC only; WebM audio is not implemented.
 - The audio pass muxes one track; advanced mixing is not implemented.
 - GIF is limited to 256 colors and 1/100-second timing; long or high-resolution

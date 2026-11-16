@@ -83,10 +83,24 @@ Completed in Phase 1:
 - `cargo build --release` — success.
 - Manual smoke: offline `promo` scene (90 frames, three effect ranges) rendered to a 1920×1080 PNG; OpenAI-compatible mock server exercised prompt mode, token usage, one vision revision and a cache hit with `cached: true` / `attempts: 0`.
 
-## Phase 5 — Media import — Later
+## Phase 5 — Media import — Implemented locally
 
-- Image to ASCII: charsets, color, braille, dithering.
-- Video and GIF to ASCII frames through FFmpeg.
+- [x] Image to ASCII: charsets, color, background, invert, dithering and Sobel edges.
+- [x] Braille mode using 2×4 pixels per cell and U+2800..U+28FF.
+- [x] Video and GIF to ASCII frames through FFmpeg.
+- [x] `Frames` scene layer with modulo playback and bounded validation.
+- [x] CLI `import`, JSON reports and documentation.
+- [x] Tests: image conversion, braille, color, dithering, edges, Frames layer and conditional FFmpeg video/GIF fixtures.
+- [ ] CI green after the Phase 5 push (pending user authorization).
+
+### Phase 5 verification (2026-11-16)
+
+- `cargo fmt --all -- --check` — clean.
+- `cargo clippy --all-targets -- -D warnings` — clean.
+- `cargo test` — **293 tests passed**.
+- `cargo build --release` — success.
+- Manual image import: 40×11 color scene rendered to 640×325 PNG.
+- Manual video/GIF import: 2 braille frames rendered to a 320×236 GIF; `--edges` produced directional glyphs; release binary verified.
 
 ## Phase 6 — Ecosystem — Later
 
