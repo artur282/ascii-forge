@@ -13,20 +13,29 @@ AI-driven ASCII art, images, GIFs and videos from the command line.
 > [docs/effects.md](docs/effects.md) for the effect catalog, and
 > [ROADMAP.md](ROADMAP.md) for the delivery plan.
 
-## Gallery
+## Logo
 
-Five complete ASCII examples plus the animated logo. Every still has a GIF and
-MP4 in [`examples/`](examples/README.md).
+The animated ASCII Forge logo lives separately from the example gallery.
 
 <p align="center">
-  <a href="examples/README.md"><img src="assets/logo/ascii-forge-logo.png" width="24%" alt="ASCII Forge skeleton logo"></a>
-  <a href="examples/README.md"><img src="assets/examples/neon-skull/neon-skull.png" width="24%" alt="Neon skull"></a>
-  <a href="examples/README.md"><img src="assets/examples/great-wave/great-wave.png" width="24%" alt="The Great Wave"></a>
+  <a href="assets/logo/README.md"><img src="assets/logo/ascii-forge-logo.png" width="30%" alt="ASCII Forge animated skeleton logo"></a>
+</p>
+
+[Logo details and animation notes](assets/logo/README.md)
+
+## Examples
+
+Five complete ASCII examples. Each still has a GIF and MP4 in
+[`examples/`](examples/README.md).
+
+<p align="center">
+  <a href="examples/README.md"><img src="assets/examples/great-wave/great-wave.png" width="30%" alt="The Great Wave"></a>
+  <a href="examples/README.md"><img src="assets/examples/red-fuji/red-fuji.png" width="30%" alt="Red Fuji"></a>
+  <a href="examples/README.md"><img src="assets/examples/starry-night/starry-night.png" width="30%" alt="The Starry Night"></a>
 </p>
 <p align="center">
-  <a href="examples/README.md"><img src="assets/examples/red-fuji/red-fuji.png" width="24%" alt="Red Fuji"></a>
-  <a href="examples/README.md"><img src="assets/examples/sunflowers/sunflowers.png" width="24%" alt="Sunflowers"></a>
-  <a href="examples/README.md"><img src="assets/examples/vitruvian/vitruvian.png" width="24%" alt="Vitruvian Man"></a>
+  <a href="examples/README.md"><img src="assets/examples/sunflowers/sunflowers.png" width="30%" alt="Sunflowers"></a>
+  <a href="examples/README.md"><img src="assets/examples/vitruvian/vitruvian.png" width="30%" alt="Vitruvian Man"></a>
 </p>
 
 ## Why ASCII Forge
