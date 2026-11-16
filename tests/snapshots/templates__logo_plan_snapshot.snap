@@ -1,0 +1,53 @@
+---
+source: tests/templates.rs
+expression: plan
+---
+{
+  "title": "ASCII Forge",
+  "tagline": "Build scenes from text",
+  "template": "logo",
+  "aspect": "landscape",
+  "palette": [
+    {
+      "r": 10,
+      "g": 12,
+      "b": 16,
+      "a": 255
+    },
+    {
+      "r": 0,
+      "g": 255,
+      "b": 255,
+      "a": 255
+    },
+    {
+      "r": 255,
+      "g": 255,
+      "b": 255,
+      "a": 255
+    }
+  ],
+  "font": "standard",
+  "layout": "centered",
+  "beats": [
+    {
+      "effect": {
+        "type": "typewriter",
+        "chars_per_frame": 1.0
+      },
+      "target": "title",
+      "frames": 30
+    },
+    {
+      "effect": {
+        "type": "fade",
+        "from": 0.0,
+        "to": 1.0
+      },
+      "target": "title",
+      "frames": 30
+    }
+  ],
+  "seed": 7,
+  "align": "center"
+}

@@ -1,0 +1,53 @@
+---
+source: tests/templates.rs
+expression: plan
+---
+{
+  "title": "ASCII Forge",
+  "tagline": "Build scenes from text",
+  "template": "glitch",
+  "aspect": "landscape",
+  "palette": [
+    {
+      "r": 0,
+      "g": 0,
+      "b": 0,
+      "a": 255
+    },
+    {
+      "r": 0,
+      "g": 255,
+      "b": 136,
+      "a": 255
+    },
+    {
+      "r": 0,
+      "g": 255,
+      "b": 136,
+      "a": 255
+    }
+  ],
+  "font": "standard",
+  "layout": "full_bleed",
+  "beats": [
+    {
+      "effect": {
+        "type": "glitch",
+        "intensity": 0.5
+      },
+      "target": "canvas",
+      "frames": 30
+    },
+    {
+      "effect": {
+        "type": "scanline",
+        "intensity": 0.5,
+        "speed": 1.0
+      },
+      "target": "canvas",
+      "frames": 30
+    }
+  ],
+  "seed": 7,
+  "align": "center"
+}
