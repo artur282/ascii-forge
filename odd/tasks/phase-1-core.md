@@ -109,4 +109,4 @@ Test runner: `cargo test` (unit + integration), `cargo fmt`, `cargo clippy -D wa
 - `cargo build --release`: success.
 - Manual smoke: `--version`, `--help`, `fonts`, `fonts --json`, `doctor`, `doctor --json`, static `render` to PNG at exactly 1280×720, SVG output, and pending-command errors.
 - No commits or pushes. Changes remain on `feat/phase-1-core` for user review.
-- Gaps: first GitHub CI run. `.ascii-forge/` cache layout closed in Phase 4; GIF/video/effects/AI commands shipped in Phases 2-4.
+- CI is green on `main` ([run 43921561793](https://github.com/artur282/ascii-forge/actions/runs/43921561793)). `.ascii-forge/` cache layout closed in Phase 4; GIF/video/effects/AI commands shipped in Phases 2-4.

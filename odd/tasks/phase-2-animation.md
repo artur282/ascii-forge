@@ -50,7 +50,7 @@ Test runner: `cargo test` (unit + integration), `cargo fmt --all -- --check`, `c
 - `render --format gif` composes every frame through `compose_frame`, rasterizes it and streams it to the GIF encoder.
 - `render --frame N` selects a static frame for PNG/JPEG/SVG/ANSI/text; out-of-range frames fail clearly.
 - `preview` loads and validates the scene and calls the TUI module; `--json` is rejected with a clear message.
-- `generate` and `import` remain explicitly pending.
+- At Phase 2 time `generate` and `import` remained pending; `generate` shipped in Phase 4 and `import` remains Phase 5.
 
 ### S6 — Documentation and verification
 
@@ -115,4 +115,4 @@ Previous standing authorization:
 - `cargo test`: 153 passed: 9 CLI, 8 compose animation, 20 effects, 21 FIGlet, 14 GIF, 12 render command, 7 PNG/ANSI, 11 SVG, 1 schema, 29 validation, 1 smoke, 12 timeline, 8 TUI.
 - `cargo build --release`: success.
 - Manual smoke: rendered a 30-frame 320×180 GIF (28 KB, decoded by ffprobe with 30 frames), rendered a transparent 16-color GIF, rendered PNG frame 10 at 320×180, ran `preview --no-color` through a pseudo-TTY (entered/left the alternate screen and exited with `q`), and exercised `preview --json` and out-of-range frame errors.
-- No commits or pushes. Changes remain on `feat/phase-1-core` for user review; GitHub CI still needs a push.
+- Shipped in the Phase 1-4 delivery on `main`; CI is green ([run 43921561793](https://github.com/artur282/ascii-forge/actions/runs/43921561793)).

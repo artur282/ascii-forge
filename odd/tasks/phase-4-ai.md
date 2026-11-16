@@ -60,7 +60,7 @@ Test runner: `cargo test`, `cargo fmt --all -- --check`, `cargo clippy --all-tar
 - `generate` without a template requires a prompt; template mode does not call the network.
 - JSON output reports the scene path, plan source (AI/template), template, frames, seed and token usage when available.
 - README documents the provider contract, environment variables, cache layout, templates, vision opt-in and offline mode.
-- Pending CI remains: the first GitHub run needs the user's commit/push.
+- CI is green on `main`: [run 43921561793](https://github.com/artur282/ascii-forge/actions/runs/43921561793).
 
 ## Tasks
 
@@ -86,7 +86,7 @@ Previous standing authorization:
 
 ### L2 — Planning notes (2026-11-16)
 
-- Pending before Phase 4: `.ascii-forge/` cache layout and the first GitHub CI run. CI needs a user commit/push; this feature branch stays uncommitted unless the user explicitly authorizes it.
+- At planning time, pending before Phase 4 were the `.ascii-forge/` cache layout and the first GitHub CI run. The user later authorized commits/push; cache and CI are now complete.
 - Phase 4 maps to issues #13 (LLM ScenePlan), #14 (templates/offline) and #15 (vision loop).
 - The parent owns `Cargo.toml`, `src/lib.rs`, `src/ai/mod.rs`, `src/templates/mod.rs`, `src/cli/mod.rs`, README/ROADMAP and final verification.
 - Workers own disjoint surfaces: plan/compiler/templates, provider/cache, vision.
@@ -104,4 +104,4 @@ Previous standing authorization:
 - Local OpenAI-compatible mock server: prompt mode returned a plan and usage (11/22/33 tokens); `--vision` replaced the tagline after exactly one critique; a second run with the same key reported `cached: true`, `attempts: 0` and did not call the provider.
 - Cache path observed: `.ascii-forge/cache/ai/<sha256>.json`.
 - Release binary smoke: `generate --template matrix --title WAKE --seed 42` produced a 60-frame scene and a 1080×1920 PNG; prompt mode also worked outside the repository.
-- CI remains pending because the branch has no commit/push authorization.
+- CI is green on `main` ([run 43921561793](https://github.com/artur282/ascii-forge/actions/runs/43921561793)); the feature branch and `main` both point at `a2962a0`.

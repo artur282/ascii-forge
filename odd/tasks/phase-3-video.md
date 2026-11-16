@@ -102,4 +102,4 @@ Previous standing authorization:
 - `cargo test`: 183 passed: 12 audio, 9 CLI, 8 compose animation, 20 effects, 21 FIGlet, 14 GIF, 19 render command, 7 PNG/ANSI, 11 SVG, 1 schema, 29 validation, 1 smoke, 12 timeline, 8 TUI, 11 video.
 - `cargo build --release`: success.
 - Manual smoke: 63x63 MP4 (ffprobe 64x64, 30 frames), VP9 WebM (30 frames), MP4 with an existing WAV (AAC track, 1.000s), MP4 with `--voice` (AAC track), missing-FFmpeg error, and WebM-with-audio rejection.
-- No commits or pushes. Changes remain on `feat/phase-1-core` for user review; GitHub CI still needs a push.
+- Shipped in the Phase 1-4 delivery on `main`; CI is green ([run 43921561793](https://github.com/artur282/ascii-forge/actions/runs/43921561793)).
