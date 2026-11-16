@@ -1,0 +1,21 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# ASCII Forge runtime data
+.ascii-forge/
+/out/
+/dist/
+
+# Editor and OS files
+.idea/
+.DS_Store
+*.swp
+
+# Logs
+*.log
