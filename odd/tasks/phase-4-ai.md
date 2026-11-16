@@ -104,4 +104,4 @@ Previous standing authorization:
 - Local OpenAI-compatible mock server: prompt mode returned a plan and usage (11/22/33 tokens); `--vision` replaced the tagline after exactly one critique; a second run with the same key reported `cached: true`, `attempts: 0` and did not call the provider.
 - Cache path observed: `.ascii-forge/cache/ai/<sha256>.json`.
 - Release binary smoke: `generate --template matrix --title WAKE --seed 42` produced a 60-frame scene and a 1080×1920 PNG; prompt mode also worked outside the repository.
-- CI is green on `main` ([run 43921561793](https://github.com/artur282/ascii-forge/actions/runs/43921561793)); the feature branch and `main` both point at `a2962a0`.
+- CI is green on `main`; latest run after the vendored-figlet security fix: [43923397363](https://github.com/artur282/ascii-forge/actions/runs/43923397363) (`f0d836b`).
