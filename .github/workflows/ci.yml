@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ascii-forge
+          cache-on-failure: true
+      - name: Install FFmpeg, fonts and espeak-ng
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core espeak-ng
+      - uses: taiki-e/install-action@nextest
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Lint with Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Run tests
+        run: cargo nextest run --all-targets
+      - name: Build release binary
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: cargo build --release
