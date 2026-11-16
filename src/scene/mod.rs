@@ -112,6 +112,7 @@ pub enum LayerKind {
     Figlet(FigletLayer),
     Image(ImageLayer),
     Grid(GridLayer),
+    Frames(FramesLayer),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -146,6 +147,12 @@ pub struct ImageLayer {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GridLayer {
     pub grid: Grid,
+}
+
+/// Animated ASCII frames, one grid per timeline frame.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct FramesLayer {
+    pub frames: Vec<Grid>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]

@@ -6,8 +6,8 @@
 use std::collections::HashSet;
 
 use super::{
-    Canvas, Easing, Effect, EffectKind, Layer, LayerKind, OutputFormat, OutputSpec, SCENE_VERSION,
-    Scene, Timeline, Transform,
+    Canvas, Easing, Effect, EffectKind, Grid, Layer, LayerKind, OutputFormat, OutputSpec,
+    SCENE_VERSION, Scene, Timeline, Transform,
 };
 use thiserror::Error;
 
@@ -21,6 +21,7 @@ const MIN_FRAMES: u32 = 1;
 const MAX_FRAMES: u32 = 18_000;
 const MAX_TEXT_CHARS: usize = 200;
 const MAX_FIGLET_FONT_CHARS: usize = 64;
+const MAX_LAYER_FRAMES: usize = 1000;
 const MIN_SCALE: f32 = 0.1;
 const MAX_SCALE: f32 = 10.0;
 const MIN_OPACITY: f32 = 0.0;
@@ -85,6 +86,36 @@ pub enum ValidationError {
         layer: String,
         len: usize,
         max: usize,
+    },
+
+    #[error("layer \"{layer}\" frames must not be empty")]
+    EmptyFrames { layer: String },
+
+    #[error("layer \"{layer}\" has {count} frames; maximum is {max}")]
+    FramesTooMany {
+        layer: String,
+        count: usize,
+        max: usize,
+    },
+
+    #[error("layer \"{layer}\" frame {frame} has zero dimensions: {cols}x{rows}")]
+    FrameGridEmpty {
+        layer: String,
+        frame: usize,
+        cols: u16,
+        rows: u16,
+    },
+
+    #[error(
+        "layer \"{layer}\" frame {frame} has {cells} cells; expected {expected} for {cols}x{rows}"
+    )]
+    FrameGridCellCount {
+        layer: String,
+        frame: usize,
+        cols: u16,
+        rows: u16,
+        cells: usize,
+        expected: usize,
     },
 
     #[error("{location} opacity {value} out of range {min}..={max}")]
@@ -294,6 +325,49 @@ fn validate_layer_kind(layer: &Layer, errors: &mut Vec<ValidationError>) {
             validate_figlet_font(&layer.id, &figlet.font, errors);
         }
         LayerKind::Image(_) | LayerKind::Grid(_) => {}
+        LayerKind::Frames(frames) => validate_frames(&layer.id, &frames.frames, errors),
+    }
+}
+
+fn validate_frames(layer: &str, frames: &[Grid], errors: &mut Vec<ValidationError>) {
+    if frames.is_empty() {
+        errors.push(ValidationError::EmptyFrames {
+            layer: layer.to_string(),
+        });
+        return;
+    }
+    if frames.len() > MAX_LAYER_FRAMES {
+        errors.push(ValidationError::FramesTooMany {
+            layer: layer.to_string(),
+            count: frames.len(),
+            max: MAX_LAYER_FRAMES,
+        });
+    }
+    for (frame, grid) in frames.iter().enumerate() {
+        validate_frame_grid(layer, frame, grid, errors);
+    }
+}
+
+fn validate_frame_grid(layer: &str, frame: usize, grid: &Grid, errors: &mut Vec<ValidationError>) {
+    if grid.cols == 0 || grid.rows == 0 {
+        errors.push(ValidationError::FrameGridEmpty {
+            layer: layer.to_string(),
+            frame,
+            cols: grid.cols,
+            rows: grid.rows,
+        });
+        return;
+    }
+    let expected = usize::from(grid.cols) * usize::from(grid.rows);
+    if grid.cells.len() != expected {
+        errors.push(ValidationError::FrameGridCellCount {
+            layer: layer.to_string(),
+            frame,
+            cols: grid.cols,
+            rows: grid.rows,
+            cells: grid.cells.len(),
+            expected,
+        });
     }
 }
 

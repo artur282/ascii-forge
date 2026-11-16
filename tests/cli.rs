@@ -4,7 +4,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use assert_cmd::Command;
-use predicates::prelude::*;
 use predicates::str::contains;
 use serde_json::Value;
 use tempfile::TempDir;
@@ -85,21 +84,44 @@ fn fonts_lists_the_figlet_catalog() {
 }
 
 #[test]
-fn pending_commands_report_not_implemented() {
-    let (_home, mut command) = isolated_command();
-    command
+fn import_image_writes_a_valid_scene() {
+    let (home, mut command) = isolated_command();
+    let input = home.path().join("gradient.png");
+    let image = image::RgbaImage::from_fn(64, 32, |x, _| {
+        let value = (x * 255 / 64) as u8;
+        image::Rgba([value, value, value, 255])
+    });
+    image.save(&input).expect("save fixture");
+    let output = home.path().join("imported.json");
+    let assert = command
         .args([
             "import",
-            "photo.png",
-            "--output",
-            "scene.json",
+            input.to_str().expect("utf-8 path"),
+            "--cols",
+            "40",
             "--charset",
-            "@#* ",
+            "blocks",
+            "--color",
+            "--json",
+            "--out",
+            output.to_str().expect("utf-8 path"),
         ])
         .assert()
-        .code(1)
-        .stdout(predicate::str::is_empty())
-        .stderr(contains("not implemented yet"));
+        .success();
+    let report = stdout_json(&assert);
+    assert_eq!(report["kind"], "image");
+    assert_eq!(report["cols"], 40);
+    assert_eq!(report["rows"], 11);
+    assert_eq!(report["frames"], 1);
+    assert_eq!(report["color"], true);
+
+    let scene: Value =
+        serde_json::from_slice(&fs::read(&output).expect("scene file")).expect("scene JSON");
+    assert_eq!(scene["canvas"]["cols"], 40);
+    assert_eq!(scene["canvas"]["rows"], 11);
+    assert_eq!(scene["timeline"]["frames"], 1);
+    assert_eq!(scene["output"]["format"], "png");
+    assert_eq!(scene["layers"][0]["kind"]["type"], "grid");
 }
 
 #[test]

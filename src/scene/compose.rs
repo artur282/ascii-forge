@@ -18,6 +18,9 @@ pub enum ComposeError {
     #[error("layer \"{layer}\" is not supported for rendering: {kind}")]
     UnsupportedLayer { layer: String, kind: &'static str },
 
+    #[error("layer \"{layer}\" has no frames to compose")]
+    EmptyFrames { layer: String },
+
     #[error("layer \"{layer}\" failed to render: {source}")]
     Figlet {
         layer: String,
@@ -52,7 +55,7 @@ pub fn compose_frame(scene: &Scene, frame_index: u32) -> Result<Frame, ComposeEr
 
     for layer in &scene.layers {
         let transform = timeline::transform_at(layer, frame_index);
-        let mut layer_grid = render_layer(layer, canvas)?;
+        let mut layer_grid = render_layer(layer, canvas, frame_index)?;
         if (transform.scale - 1.0).abs() > f32::EPSILON {
             layer_grid = scale_grid(&layer_grid, transform.scale);
         }
@@ -81,7 +84,7 @@ pub fn compose_frame(scene: &Scene, frame_index: u32) -> Result<Frame, ComposeEr
     })
 }
 
-fn render_layer(layer: &Layer, canvas: &Canvas) -> Result<Grid, ComposeError> {
+fn render_layer(layer: &Layer, canvas: &Canvas, frame_index: u32) -> Result<Grid, ComposeError> {
     Ok(match &layer.kind {
         LayerKind::Text(text) => {
             let options = FigletOptions {
@@ -112,6 +115,15 @@ fn render_layer(layer: &Layer, canvas: &Canvas) -> Result<Grid, ComposeError> {
             })?
         }
         LayerKind::Grid(grid_layer) => grid_layer.grid.clone(),
+        LayerKind::Frames(frames_layer) => {
+            if frames_layer.frames.is_empty() {
+                return Err(ComposeError::EmptyFrames {
+                    layer: layer.id.clone(),
+                });
+            }
+            let index = frame_index as usize % frames_layer.frames.len();
+            frames_layer.frames[index].clone()
+        }
         LayerKind::Image(_) => {
             return Err(ComposeError::UnsupportedLayer {
                 layer: layer.id.clone(),

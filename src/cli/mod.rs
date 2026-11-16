@@ -20,9 +20,13 @@ use crate::encode::audio::{AudioOptions, generate_voice, mux_audio};
 use crate::encode::gif::{GifEncoder, GifOptions};
 use crate::encode::video::{VideoEncoder, VideoFormat, VideoOptions};
 use crate::figlet::font_names;
+use crate::import::video::{default_ffprobe, import_video};
+use crate::import::{
+    ImportOptions, build_static_scene, build_video_scene, image_to_grid, resolve_charset,
+};
 use crate::render::{RenderOptions, raster, svg};
 use crate::scene::compose::compose_frame;
-use crate::scene::{OutputFormat, Scene};
+use crate::scene::{OutputFormat, Rgba, Scene};
 use crate::templates::{TemplateParams, build as build_template};
 use crate::tui;
 
@@ -72,7 +76,7 @@ pub enum Command {
     Render(RenderArgs),
     /// Preview a scene as animated ANSI art in the terminal.
     Preview(PreviewArgs),
-    /// Import an image or video as a scene (not implemented yet).
+    /// Import an image or video/GIF as an ASCII scene.
     Import(ImportArgs),
     /// List the FIGlet fonts and the resolved render font.
     Fonts,
@@ -234,7 +238,7 @@ pub struct PreviewArgs {
 
 #[derive(Debug, Args)]
 pub struct ImportArgs {
-    /// Image or video file to import.
+    /// Image or video/GIF file to import.
     #[arg(value_name = "INPUT")]
     pub input: PathBuf,
 
@@ -248,9 +252,65 @@ pub struct ImportArgs {
     )]
     pub output: PathBuf,
 
-    /// Character ramp used for the conversion.
+    /// Target columns.
+    #[arg(long, default_value_t = crate::import::DEFAULT_COLS, value_parser = parse_cols)]
+    pub cols: u16,
+
+    /// Target rows; derived from the source aspect when omitted.
+    #[arg(long, value_parser = parse_rows)]
+    pub rows: Option<u16>,
+
+    /// Charset preset (ascii, blocks, detailed) or a custom luminance ramp.
     #[arg(long, value_name = "CHARS")]
     pub charset: Option<String>,
+
+    /// Sample the source color per cell.
+    #[arg(long)]
+    pub color: bool,
+
+    /// Use 2x4 pixels per cell and Unicode braille output.
+    #[arg(long)]
+    pub braille: bool,
+
+    /// Apply Floyd-Steinberg dithering.
+    #[arg(long)]
+    pub dither: bool,
+
+    /// Apply Sobel edge detection with directional glyphs.
+    #[arg(long)]
+    pub edges: bool,
+
+    /// Invert the luminance mapping.
+    #[arg(long)]
+    pub invert: bool,
+
+    /// Canvas background color (#rrggbb or rrggbb).
+    #[arg(long, value_parser = parse_color)]
+    pub background: Option<Rgba>,
+
+    /// Foreground color for monochrome output (#rrggbb or rrggbb).
+    #[arg(long, value_parser = parse_color)]
+    pub foreground: Option<Rgba>,
+
+    /// Video/GIF sampling rate.
+    #[arg(long, default_value_t = crate::import::DEFAULT_FPS, value_parser = parse_fps)]
+    pub fps: u16,
+
+    /// Maximum embedded video/GIF frames.
+    #[arg(
+        long = "max-frames",
+        default_value_t = crate::import::DEFAULT_MAX_FRAMES,
+        value_parser = parse_max_frames
+    )]
+    pub max_frames: u32,
+
+    /// Path to the FFmpeg binary for video/GIF import.
+    #[arg(long)]
+    pub ffmpeg_path: Option<PathBuf>,
+
+    /// Path to the FFprobe binary; derived from --ffmpeg-path when omitted.
+    #[arg(long)]
+    pub ffprobe_path: Option<PathBuf>,
 }
 
 /// Parse the format names accepted by `render --format`.
@@ -283,6 +343,62 @@ fn parse_palette_size(value: &str) -> std::result::Result<u16, String> {
     }
 }
 
+fn parse_cols(value: &str) -> std::result::Result<u16, String> {
+    parse_u16_range(value, "columns", 1, crate::import::MAX_COLS)
+}
+
+fn parse_rows(value: &str) -> std::result::Result<u16, String> {
+    parse_u16_range(value, "rows", 1, crate::import::MAX_ROWS)
+}
+
+fn parse_fps(value: &str) -> std::result::Result<u16, String> {
+    parse_u16_range(value, "fps", 1, 60)
+}
+
+fn parse_max_frames(value: &str) -> std::result::Result<u32, String> {
+    let frames: u32 = value
+        .parse()
+        .map_err(|_| format!("max frames must be an integer, got `{value}`"))?;
+    if (1..=crate::import::MAX_FRAMES).contains(&frames) {
+        Ok(frames)
+    } else {
+        Err(format!(
+            "max frames must be between 1 and {}, got {frames}",
+            crate::import::MAX_FRAMES
+        ))
+    }
+}
+
+fn parse_u16_range(
+    value: &str,
+    name: &str,
+    min: u16,
+    max: u16,
+) -> std::result::Result<u16, String> {
+    let number: u16 = value
+        .parse()
+        .map_err(|_| format!("{name} must be an integer, got `{value}`"))?;
+    if (min..=max).contains(&number) {
+        Ok(number)
+    } else {
+        Err(format!(
+            "{name} must be between {min} and {max}, got {number}"
+        ))
+    }
+}
+
+fn parse_color(value: &str) -> std::result::Result<Rgba, String> {
+    let hex = value.trim().strip_prefix('#').unwrap_or(value.trim());
+    if hex.len() != 6 || !hex.is_ascii() {
+        return Err(format!("color must be #rrggbb or rrggbb, got `{value}`"));
+    }
+    let channel = |range: std::ops::Range<usize>| {
+        u8::from_str_radix(&hex[range], 16)
+            .map_err(|_| format!("color must be #rrggbb or rrggbb, got `{value}`"))
+    };
+    Ok(Rgba::rgb(channel(0..2)?, channel(2..4)?, channel(4..6)?))
+}
+
 pub fn run() -> Result<()> {
     let Cli {
         verbose,
@@ -300,14 +416,10 @@ pub fn run() -> Result<()> {
         Command::Generate(args) => run_generate(args, json),
         Command::Render(args) => run_render(args, json, no_color),
         Command::Preview(args) => run_preview(args, json, no_color),
-        Command::Import(_) => not_implemented("import"),
+        Command::Import(args) => run_import(args, json),
         Command::Fonts => run_fonts(json),
         Command::Doctor => run_doctor(json, no_color),
     }
-}
-
-fn not_implemented(command: &str) -> Result<()> {
-    bail!("{command} is not implemented yet")
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -499,6 +611,93 @@ fn apply_vision(
             Ok(false)
         }
     }
+}
+
+fn run_import(args: ImportArgs, json: bool) -> Result<()> {
+    let settings = Settings::load()?;
+    let options = ImportOptions {
+        cols: args.cols,
+        rows: args.rows,
+        charset: resolve_charset(args.charset.as_deref())?,
+        color: args.color,
+        braille: args.braille,
+        dither: args.dither,
+        invert: args.invert,
+        edges: args.edges,
+        background: args.background.unwrap_or(Rgba::rgb(0, 0, 0)),
+        foreground: args.foreground.unwrap_or(Rgba::rgb(255, 255, 255)),
+        cell_aspect: crate::import::DEFAULT_CELL_ASPECT,
+        fps: args.fps,
+        max_frames: args.max_frames,
+    };
+    options.validate()?;
+
+    let extension = args
+        .input
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let video_extension = matches!(
+        extension.as_str(),
+        "gif" | "mp4" | "webm" | "mov" | "mkv" | "avi" | "m4v" | "mpeg" | "mpg" | "ogv" | "ts"
+    );
+
+    let (scene, kind) = if video_extension {
+        let ffmpeg = args
+            .ffmpeg_path
+            .clone()
+            .or(settings.config.ffmpeg.path.clone())
+            .unwrap_or_else(|| PathBuf::from("ffmpeg"));
+        let ffprobe = args
+            .ffprobe_path
+            .clone()
+            .unwrap_or_else(|| default_ffprobe(&ffmpeg));
+        let imported = import_video(&args.input, &options, &ffmpeg, &ffprobe)?;
+        let fps = imported.fps;
+        (build_video_scene(imported.frames, fps, &options)?, "video")
+    } else {
+        let image = image::open(&args.input)
+            .with_context(|| format!("failed to open image {}", args.input.display()))?;
+        let grid = image_to_grid(&image, &options)?;
+        (build_static_scene(grid, &options)?, "image")
+    };
+
+    write_scene(&args.output, &scene)?;
+    report_import(json, &args.output, kind, &scene, &options)
+}
+
+fn report_import(
+    json: bool,
+    path: &Path,
+    kind: &str,
+    scene: &Scene,
+    options: &ImportOptions,
+) -> Result<()> {
+    if json {
+        print_json(&serde_json::json!({
+            "output": path.display().to_string(),
+            "kind": kind,
+            "cols": scene.canvas.cols,
+            "rows": scene.canvas.rows,
+            "frames": scene.timeline.frames,
+            "fps": scene.timeline.fps,
+            "color": options.color,
+            "braille": options.braille,
+            "dither": options.dither,
+            "edges": options.edges,
+        }))?;
+    } else {
+        println!(
+            "wrote {} ({kind} {}x{}, {} frames, {} fps)",
+            path.display(),
+            scene.canvas.cols,
+            scene.canvas.rows,
+            scene.timeline.frames,
+            scene.timeline.fps
+        );
+    }
+    Ok(())
 }
 
 fn write_scene(path: &Path, scene: &Scene) -> Result<()> {
