@@ -1,0 +1,15 @@
+[package]
+name = "figlet-rs"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.56"
+description = "Vendored FIGlet renderer for ASCII Forge (zip support removed)"
+license = "Apache-2.0"
+repository = "https://github.com/yuanbohan/rs-figlet"
+include = ["src/**", "resources/*.flf", "LICENSE-APACHE", "COPYRIGHT", "README.md"]
+
+[lib]
+name = "figlet_rs"
+path = "src/lib.rs"
+
+[dependencies]

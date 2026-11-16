@@ -417,3 +417,7 @@ phase milestones.
 
 MIT OR Apache-2.0. See [LICENSE-MIT](LICENSE-MIT) and
 [LICENSE-APACHE](LICENSE-APACHE).
+
+FIGlet rendering vendors `figlet-rs` 1.0.0 under Apache-2.0 in
+[`vendor/figlet-rs`](vendor/figlet-rs); the unused Toilet/zip path was removed to
+avoid a vulnerable parser dependency.

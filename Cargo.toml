@@ -40,3 +40,6 @@ unicode-width = "0.2"
 assert_cmd = "2"
 insta = { version = "1", features = ["json"] }
 predicates = "3"
+
+[patch.crates-io]
+figlet-rs = { path = "vendor/figlet-rs" }
