@@ -103,11 +103,23 @@ Completed in Phase 1:
 - Manual video/GIF import: 2 braille frames rendered to a 320×236 GIF; `--edges` produced directional glyphs; release binary verified.
 - GitHub Actions run 43927346245: formatting, clippy, 293 tests and release build passed.
 
-## Phase 6 — Ecosystem — Later
+## Phase 6 — Ecosystem — Done locally
 
-- MCP server mode.
-- Release packaging, install script and checksums.
-- Optional self-contained H.264/AV1 encoder path.
+- [x] MCP stdio server with `create_scene`, `render_preview`, `export`, `list_fonts` and `doctor`.
+- [x] `install.sh` with `PREFIX`, `--uninstall` and `--build/--no-build`.
+- [x] Tag-only release workflow for Linux, macOS and Windows.
+- [x] `SHA256SUMS` and release documentation.
+- [ ] Optional self-contained H.264/AV1 encoder path (future work).
+- [ ] CI green after the Phase 6 push (pending user authorization).
+
+### Phase 6 verification (2026-11-16)
+
+- `cargo fmt --all -- --check` and `cargo clippy --all-targets -- -D warnings` — clean.
+- `cargo test` — **313 tests passed** (including 6 MCP and 10 installer tests).
+- `cargo build --release` — success.
+- Manual MCP stdio handshake: initialize, tools/list, template `create_scene`, bounded `render_preview` and PNG `export` succeeded from a release binary.
+- Release-package simulation: archive contains binary, README, both licenses and `install.sh`; `SHA256SUMS` verified; extracted archive installed with `--no-build` and `--version` ran.
+- Release workflow YAML parsed; it triggers only on `v*` tags.
 
 ## Out of scope for v1
 

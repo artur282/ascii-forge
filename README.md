@@ -2,12 +2,13 @@
 
 AI-driven ASCII art, images, GIFs and videos from the command line.
 
-> **Status:** Phases 1-5 are implemented on `main`; CI is green.
+> **Status:** Phases 1-6 are implemented locally; CI is green through Phase 5.
 > The scene format, text/FIGlet layers, static PNG/JPEG/ANSI/SVG rendering,
 > timeline/keyframe animation, deterministic effects, terminal preview, GIF
 > export, MP4/WebM video, audio muxing, voice-over, AI scene planning, offline
-> templates, opt-in vision review, image/video import, `generate`, `render`,
-> `import`, `fonts` and `doctor` are implemented.
+> templates, opt-in vision review, image/video import, MCP tools, install/release
+> packaging, `generate`, `render`, `import`, `mcp`, `fonts` and `doctor` are
+> implemented.
 >
 > See [docs/research.md](docs/research.md) for the investigation,
 > [docs/effects.md](docs/effects.md) for the effect catalog, and
@@ -50,6 +51,29 @@ Most ASCII tools are either image converters or web editors. ASCII Forge is a
 
 The goal is repeatable output: the same scene and seed must produce the same
 frames. The model decides *what*; Rust decides *how*.
+
+## Install
+
+From source:
+
+```bash
+cargo install --path .
+```
+
+From a release archive, unpack it and run `./install.sh` (or set `PREFIX` and
+run it from the repository):
+
+```bash
+PREFIX="$HOME/.local/bin" ./install.sh --no-build
+./install.sh --uninstall
+```
+
+`install.sh` supports `--build`, `--no-build`, `--prefix DIR` and
+`--uninstall`. Release archives include the binary, README and both licenses;
+`SHA256SUMS` is published with each GitHub Release. FFmpeg/ffprobe remain
+runtime dependencies for video export and media import. See
+[packaging/README.md](packaging/README.md) for targets, verification and the
+tag release process.
 
 ## Implemented
 
@@ -96,6 +120,17 @@ frames. The model decides *what*; Rust decides *how*.
 - Odd dimensions are padded to even sizes for `yuv420p`.
 - Existing audio can be muxed into MP4 without re-encoding the video.
 - `--voice` synthesizes a voice-over with `espeak-ng` and muxes it into MP4.
+
+### MCP and distribution
+
+- `ascii-forge mcp` exposes `create_scene`, `render_preview`, `export`,
+  `list_fonts` and `doctor` over stdio using `rmcp`.
+- MCP artifacts stay under `.ascii-forge/artifacts/`; previews are bounded and
+  structured errors never crash the server.
+- `install.sh` installs a release binary into `PREFIX`, supports
+  `--build/--no-build`, `--uninstall` and `ASCII_FORGE_BINARY`.
+- The release workflow runs only on `v*` tags, packages Linux/macOS/Windows
+  archives with the binary, README and licenses, and publishes `SHA256SUMS`.
 
 ### AI generation and templates
 
@@ -162,10 +197,68 @@ frames. The model decides *what*; Rust decides *how*.
   monospace font and config-directory writability. It supports `--json`.
 - Global `--verbose`, `--json`, `--no-color`, `--help` and `--version`.
 
+## MCP server
+
+`ascii-forge mcp` starts an MCP server over stdio. Tools:
+
+- `create_scene`: offline template or AI prompt; writes a scene under
+  `.ascii-forge/artifacts/scenes/`.
+- `render_preview`: bounded text/ANSI preview of a scene frame.
+- `export`: PNG/JPEG/SVG/GIF/MP4/WebM/ANSI/text under
+  `.ascii-forge/artifacts/exports/`.
+- `list_fonts`: FIGlet catalog and resolved render font.
+- `doctor`: structured dependency diagnostics.
+
+The server accepts relative scene paths only inside the current project and
+never returns unbounded documents. It is optional: normal CLI use does not load
+MCP.
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "ascii-forge": {
+      "command": "/usr/local/bin/ascii-forge",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Cursor (`.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "ascii-forge": {
+      "command": "ascii-forge",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+OpenCode (`opencode.json`):
+
+```json
+{
+  "mcp": {
+    "ascii-forge": {
+      "type": "local",
+      "command": ["ascii-forge", "mcp"],
+      "enabled": true
+    }
+  }
+}
+```
+
+The AI path uses the same `ASCII_FORGE_API_KEY`/`OPENAI_API_KEY`, provider and
+cache configuration as `generate`; template mode is fully offline.
+
 ## Planned
 
 - Advanced audio mixing (the current pass muxes one audio track).
-- MCP server and release packaging.
 
 ## Requirements
 
@@ -187,7 +280,8 @@ cargo build --release
 ./target/release/ascii-forge --help
 ```
 
-A published binary and install script will be added in the packaging phase.
+Release archives and the install script are documented in
+[packaging/README.md](packaging/README.md).
 
 ## Usage
 
