@@ -82,6 +82,8 @@ pub enum Command {
     Fonts,
     /// Check FFmpeg, its encoders, monospace fonts and the config directory.
     Doctor,
+    /// Start the Model Context Protocol server over stdio.
+    Mcp,
 }
 
 #[derive(Debug, Args)]
@@ -419,6 +421,7 @@ pub fn run() -> Result<()> {
         Command::Import(args) => run_import(args, json),
         Command::Fonts => run_fonts(json),
         Command::Doctor => run_doctor(json, no_color),
+        Command::Mcp => crate::mcp::run_stdio(),
     }
 }
 
@@ -1130,6 +1133,27 @@ fn run_fonts(json: bool) -> Result<()> {
     Ok(())
 }
 
+/// Structured doctor report for MCP and other machine clients.
+pub fn doctor_json() -> Result<serde_json::Value> {
+    let (settings, config_error) = match Settings::load() {
+        Ok(settings) => (settings, None),
+        Err(error) => (Settings::default(), Some(format!("{error:#}"))),
+    };
+    let report = DoctorReport::collect(&settings, config_error.as_deref());
+    serde_json::to_value(report).context("could not serialize doctor report")
+}
+
+/// Structured font catalog for MCP and other machine clients.
+pub fn fonts_json() -> Result<serde_json::Value> {
+    let settings = Settings::load()?;
+    let resolution = resolve_font(settings.config.render.font_path.as_deref());
+    let report = FontsReport {
+        fonts: font_names(),
+        font_path: resolution.path().map(display_path),
+    };
+    serde_json::to_value(report).context("could not serialize font catalog")
+}
+
 fn run_doctor(json: bool, no_color: bool) -> Result<()> {
     let (settings, config_error) = match Settings::load() {
         Ok(settings) => (settings, None),
@@ -1174,7 +1198,7 @@ pub struct Settings {
 
 impl Settings {
     /// Read the platform config file, if any, and apply environment overrides.
-    fn load() -> Result<Self> {
+    pub fn load() -> Result<Self> {
         let config_path = config_file_path();
         let mut config = match config_path.as_deref() {
             Some(path) if path.is_file() => read_config(path)?,

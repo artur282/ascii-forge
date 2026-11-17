@@ -5,6 +5,7 @@ pub mod effect;
 pub mod encode;
 pub mod figlet;
 pub mod import;
+pub mod mcp;
 pub mod render;
 pub mod scene;
 pub mod templates;

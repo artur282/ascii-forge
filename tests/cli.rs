@@ -8,7 +8,9 @@ use predicates::str::contains;
 use serde_json::Value;
 use tempfile::TempDir;
 
-const SUBCOMMANDS: &[&str] = &["generate", "render", "preview", "import", "fonts", "doctor"];
+const SUBCOMMANDS: &[&str] = &[
+    "generate", "render", "preview", "import", "fonts", "doctor", "mcp",
+];
 
 const DOCTOR_KEYS: &[&str] = &[
     "ffmpeg",
