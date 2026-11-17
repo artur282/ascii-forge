@@ -4,12 +4,18 @@ Five complete ASCII artworks generated with ASCII Forge. Each entry includes a
 still, an animated GIF and an MP4. The source artworks are public domain; the
 ASCII conversion, color sampling, effects and animation are original.
 
+Previews are 640 px wide WebP thumbnails (63-168 KB each) that open the
+animated GIF. The full-size stills are PNG at 1400-2000 px (3.1-4.5 MB), the GIF
+loops are 6.7-9.9 MB and the MP4 videos are 0.8-1.5 MB. Regenerate all
+thumbnails from the full PNGs with
+[`scripts/build-gallery-thumbnails.py`](../scripts/build-gallery-thumbnails.py).
+
 The animated logo is documented separately in
 [assets/logo/README.md](../assets/logo/README.md).
 
 ## 1. The Great Wave
 
-[<img src="../assets/examples/great-wave/great-wave.png" alt="The Great Wave off Kanagawa in ASCII" width="640">](../assets/examples/great-wave/great-wave.gif)
+[<img src="../assets/examples/great-wave/great-wave-thumb.webp" alt="The Great Wave off Kanagawa rebuilt in indigo and teal ASCII on light paper" width="640">](../assets/examples/great-wave/great-wave.gif)
 
 [PNG](../assets/examples/great-wave/great-wave.png) · [GIF](../assets/examples/great-wave/great-wave.gif) · [MP4](../assets/examples/great-wave/great-wave.mp4)
 
@@ -19,7 +25,7 @@ brief late glitch.
 
 ## 2. Red Fuji
 
-[<img src="../assets/examples/red-fuji/red-fuji.png" alt="Red Fuji in ASCII" width="640">](../assets/examples/red-fuji/red-fuji.gif)
+[<img src="../assets/examples/red-fuji/red-fuji-thumb.webp" alt="Red Fuji in ASCII: a rust-red mountain under a blue sky" width="640">](../assets/examples/red-fuji/red-fuji.gif)
 
 [PNG](../assets/examples/red-fuji/red-fuji.png) · [GIF](../assets/examples/red-fuji/red-fuji.gif) · [MP4](../assets/examples/red-fuji/red-fuji.mp4)
 
@@ -29,7 +35,7 @@ scanline and a short late glitch.
 
 ## 3. The Starry Night
 
-[<img src="../assets/examples/starry-night/starry-night.png" alt="The Starry Night in ASCII" width="640">](../assets/examples/starry-night/starry-night.gif)
+[<img src="../assets/examples/starry-night/starry-night-thumb.webp" alt="The Starry Night in ASCII: a deep blue sky with gold stars and a crescent moon" width="640">](../assets/examples/starry-night/starry-night.gif)
 
 [PNG](../assets/examples/starry-night/starry-night.png) · [GIF](../assets/examples/starry-night/starry-night.gif) · [MP4](../assets/examples/starry-night/starry-night.mp4)
 
@@ -39,7 +45,7 @@ a low late glitch.
 
 ## 4. Sunflowers
 
-[<img src="../assets/examples/sunflowers/sunflowers.png" alt="Van Gogh Sunflowers in ASCII" width="520">](../assets/examples/sunflowers/sunflowers.gif)
+[<img src="../assets/examples/sunflowers/sunflowers-thumb.webp" alt="Van Gogh's Sunflowers in ASCII: ochre petals on a yellow ground" width="520">](../assets/examples/sunflowers/sunflowers.gif)
 
 [PNG](../assets/examples/sunflowers/sunflowers.png) · [GIF](../assets/examples/sunflowers/sunflowers.gif) · [MP4](../assets/examples/sunflowers/sunflowers.mp4)
 
@@ -49,7 +55,7 @@ zoom, scanline and a short late glitch.
 
 ## 5. Vitruvian Man
 
-[<img src="../assets/examples/vitruvian/vitruvian.png" alt="Vitruvian Man in ASCII line art" width="420">](../assets/examples/vitruvian/vitruvian.gif)
+[<img src="../assets/examples/vitruvian/vitruvian-thumb.webp" alt="Vitruvian Man in ASCII line art: black ink on light paper" width="420">](../assets/examples/vitruvian/vitruvian.gif)
 
 [PNG](../assets/examples/vitruvian/vitruvian.png) · [GIF](../assets/examples/vitruvian/vitruvian.gif) · [MP4](../assets/examples/vitruvian/vitruvian.mp4)
 

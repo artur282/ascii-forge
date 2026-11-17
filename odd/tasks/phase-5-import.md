@@ -73,7 +73,7 @@ Standing authorization from the previous delivery:
 ### L2 — Planning notes (2026-11-16)
 
 - Phase 5 maps to issue #12; #16/#17 remain Phase 6.
-- Existing `ImageLayer` is a schema placeholder; import will emit `Grid`/`Frames` layers so rendering stays deterministic and self-contained.
+- The old `ImageLayer` placeholder was removed before 1.0; import emits `Grid`/`Frames` layers so rendering stays deterministic and self-contained.
 - Video frames are embedded in the scene JSON, bounded by `--max-frames`; large videos should be exported in short slices.
 - New scene variant `Frames` is needed because the current timeline animates transforms, not arbitrary per-frame grids.
 - No AI/OCR; source quality drives output quality.

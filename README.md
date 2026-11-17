@@ -2,7 +2,8 @@
 
 AI-driven ASCII art, images, GIFs and videos from the command line.
 
-> **Status:** Phases 1-6 are implemented locally; CI is green through Phase 5.
+> **Status:** Phases 1-6 are implemented; CI is green. The 0.1.0 hardening pass adds
+> thumbnails, release checks and stricter MCP/provider security.
 > The scene format, text/FIGlet layers, static PNG/JPEG/ANSI/SVG rendering,
 > timeline/keyframe animation, deterministic effects, terminal preview, GIF
 > export, MP4/WebM video, audio muxing, voice-over, AI scene planning, offline
@@ -16,28 +17,38 @@ AI-driven ASCII art, images, GIFs and videos from the command line.
 
 ## Logo
 
-The animated ASCII Forge logo lives separately from the example gallery.
+The animated ASCII Forge logo lives separately from the example gallery. The
+preview is a 640 px WebP thumbnail; the full PNG, GIF and MP4 are linked below
+it.
 
 <p align="center">
-  <a href="assets/logo/README.md"><img src="assets/logo/ascii-forge-logo.png" width="30%" alt="ASCII Forge animated skeleton logo"></a>
+  <a href="assets/logo/ascii-forge-logo.png"><img src="assets/logo/ascii-forge-logo-thumb.webp" width="30%" alt="ASCII Forge logo: a smoking skeleton from a Van Gogh study rendered in warm ASCII characters, with a gold ASCII FORGE title"></a>
 </p>
 
-[Logo details and animation notes](assets/logo/README.md)
+[PNG](assets/logo/ascii-forge-logo.png) · [GIF](assets/logo/ascii-forge-logo.gif) · [MP4](assets/logo/ascii-forge-logo.mp4) · [Logo details and animation notes](assets/logo/README.md)
 
 ## Examples
 
-Five complete ASCII examples. Each still has a GIF and MP4 in
-[`examples/`](examples/README.md).
+Five complete ASCII examples, previewed as 640 px WebP thumbnails. Each thumb
+opens the animated GIF; the PNG, GIF and MP4 masters are linked below.
 
 <p align="center">
-  <a href="examples/README.md"><img src="assets/examples/great-wave/great-wave.png" width="30%" alt="The Great Wave"></a>
-  <a href="examples/README.md"><img src="assets/examples/red-fuji/red-fuji.png" width="30%" alt="Red Fuji"></a>
-  <a href="examples/README.md"><img src="assets/examples/starry-night/starry-night.png" width="30%" alt="The Starry Night"></a>
+  <a href="assets/examples/great-wave/great-wave.gif"><img src="assets/examples/great-wave/great-wave-thumb.webp" width="30%" alt="The Great Wave off Kanagawa rebuilt in indigo and teal ASCII on light paper"></a>
+  <a href="assets/examples/red-fuji/red-fuji.gif"><img src="assets/examples/red-fuji/red-fuji-thumb.webp" width="30%" alt="Red Fuji in ASCII: a rust-red mountain under a blue sky"></a>
+  <a href="assets/examples/starry-night/starry-night.gif"><img src="assets/examples/starry-night/starry-night-thumb.webp" width="30%" alt="The Starry Night in ASCII: a deep blue sky with gold stars and a crescent moon"></a>
 </p>
 <p align="center">
-  <a href="examples/README.md"><img src="assets/examples/sunflowers/sunflowers.png" width="30%" alt="Sunflowers"></a>
-  <a href="examples/README.md"><img src="assets/examples/vitruvian/vitruvian.png" width="30%" alt="Vitruvian Man"></a>
+  <a href="assets/examples/sunflowers/sunflowers.gif"><img src="assets/examples/sunflowers/sunflowers-thumb.webp" width="30%" alt="Van Gogh's Sunflowers in ASCII: ochre petals on a yellow ground"></a>
+  <a href="assets/examples/vitruvian/vitruvian.gif"><img src="assets/examples/vitruvian/vitruvian-thumb.webp" width="30%" alt="Vitruvian Man in ASCII line art: black ink on light paper"></a>
 </p>
+
+Full assets:
+
+- The Great Wave: [PNG](assets/examples/great-wave/great-wave.png) · [GIF](assets/examples/great-wave/great-wave.gif) · [MP4](assets/examples/great-wave/great-wave.mp4)
+- Red Fuji: [PNG](assets/examples/red-fuji/red-fuji.png) · [GIF](assets/examples/red-fuji/red-fuji.gif) · [MP4](assets/examples/red-fuji/red-fuji.mp4)
+- The Starry Night: [PNG](assets/examples/starry-night/starry-night.png) · [GIF](assets/examples/starry-night/starry-night.gif) · [MP4](assets/examples/starry-night/starry-night.mp4)
+- Sunflowers: [PNG](assets/examples/sunflowers/sunflowers.png) · [GIF](assets/examples/sunflowers/sunflowers.gif) · [MP4](assets/examples/sunflowers/sunflowers.mp4)
+- Vitruvian Man: [PNG](assets/examples/vitruvian/vitruvian.png) · [GIF](assets/examples/vitruvian/vitruvian.gif) · [MP4](assets/examples/vitruvian/vitruvian.mp4)
 
 ## Why ASCII Forge
 
@@ -195,6 +206,8 @@ tag release process.
 - `ascii-forge fonts` lists the FIGlet catalog and the resolved render font.
 - `ascii-forge doctor` checks FFmpeg/ffprobe, `libx264`, `libvpx-vp9`, a
   monospace font and config-directory writability. It supports `--json`.
+- `ascii-forge cache clear` removes only `.ascii-forge/cache/` responses; it
+  preserves generated artifacts and supports `--json`.
 - Global `--verbose`, `--json`, `--no-color`, `--help` and `--version`.
 
 ## MCP server
@@ -210,8 +223,9 @@ tag release process.
 - `doctor`: structured dependency diagnostics.
 
 The server accepts relative scene paths only inside the current project and
-never returns unbounded documents. It is optional: normal CLI use does not load
-MCP.
+never returns unbounded documents. MCP is a default Cargo feature; build with
+`--no-default-features` to omit `rmcp`/Tokio and the `mcp` command from the
+binary.
 
 Claude Desktop (`claude_desktop_config.json`):
 
@@ -515,6 +529,10 @@ resolves the grid, timing and keyframes.
 - The LLM cannot choose file paths, run commands or inject code; it only returns
   bounded enums, numbers, text and colors.
 - FFmpeg is invoked with an argument array, never through a shell.
+- Provider base URLs must use HTTPS; plain HTTP is accepted only for loopback
+  hosts unless `ASCII_FORGE_ALLOW_INSECURE_HTTP=1` is explicitly set.
+- MCP writes never overwrite an existing scene or export unless the request
+  sets `overwrite: true`; artifact paths stay inside the project.
 - Security reports go through GitHub private vulnerability reporting; see
   [SECURITY.md](SECURITY.md).
 
@@ -525,8 +543,6 @@ resolves the grid, timing and keyframes.
   large sources and render short slices. Imports are capped at 2,000,000 total
   cells to keep memory and scene size bounded.
 - Video/GIF import requires `ffmpeg` and `ffprobe` on `PATH` or explicit paths.
-- The legacy `ImageLayer` JSON variant is not used by import and remains
-  unsupported in composition; import emits `Grid`/`Frames` layers instead.
 - Braille output depends on the selected raster font covering the braille block.
 - AI prompt mode needs an OpenAI-compatible provider and an API key. Output is
   model-dependent; the compiled scene is deterministic once written.

@@ -8,6 +8,7 @@ rendered outputs; the source image is not redistributed.
 
 | File | Size | Purpose |
 | --- | --- | --- |
+| `ascii-forge-logo-thumb.webp` | 640 × 640, WebP q82 | README preview thumbnail |
 | `ascii-forge-logo.png` | 1400 × 1400 | still at frame 45 (ember near peak, plume mature) |
 | `ascii-forge-logo.gif` | 800 × 800, 90 frames, 128-color palette | looping animation |
 | `ascii-forge-logo.mp4` | 1080 × 1080, H.264 High, CRF 20, 30 fps, 3.0 s | video master |

@@ -235,7 +235,7 @@ Layers:
 pub enum LayerKind {
     Text(TextLayer),           // literal text
     Figlet(FigletLayer),       // FIGlet/Toilet output
-    Image(ImageLayer),         // pre-converted ASCII grid
+    // ImageLayer was removed before 1.0; import emits Grid/Frames.
     Grid(GridLayer),           // raw cells or imported ANSI
 }
 ```

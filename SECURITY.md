@@ -24,6 +24,10 @@ Include:
 
 Security-relevant areas include:
 
+- Provider endpoints: HTTPS is required; plain HTTP is limited to loopback
+  hosts unless `ASCII_FORGE_ALLOW_INSECURE_HTTP=1` is explicitly set.
+- MCP path confinement, overwrite protection and bounded previews.
+
 - Scene parsing and validation (untrusted JSON/YAML).
 - AI prompt handling and provider responses.
 - FFmpeg invocation and argument handling.
