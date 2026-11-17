@@ -324,7 +324,7 @@ fn validate_layer_kind(layer: &Layer, errors: &mut Vec<ValidationError>) {
             validate_layer_text(&layer.id, &figlet.text, errors);
             validate_figlet_font(&layer.id, &figlet.font, errors);
         }
-        LayerKind::Image(_) | LayerKind::Grid(_) => {}
+        LayerKind::Grid(_) => {}
         LayerKind::Frames(frames) => validate_frames(&layer.id, &frames.frames, errors),
     }
 }

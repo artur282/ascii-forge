@@ -9,7 +9,7 @@ use serde_json::Value;
 use tempfile::TempDir;
 
 const SUBCOMMANDS: &[&str] = &[
-    "generate", "render", "preview", "import", "fonts", "doctor", "mcp",
+    "generate", "render", "preview", "import", "cache", "fonts", "doctor", "mcp",
 ];
 
 const DOCTOR_KEYS: &[&str] = &[
@@ -51,6 +51,56 @@ fn stdout_json(assert: &assert_cmd::assert::Assert) -> Value {
     serde_json::from_slice(&assert.get_output().stdout).expect("stdout is valid JSON")
 }
 
+struct CacheFixture {
+    project: PathBuf,
+    cache_files: Vec<PathBuf>,
+    artifact: PathBuf,
+    config: PathBuf,
+}
+
+fn cache_fixture(home: &Path) -> CacheFixture {
+    let project = home.join("project");
+    let ascii_forge = project.join(".ascii-forge");
+    let cache_files = vec![
+        ascii_forge.join("cache").join("ai").join("first.json"),
+        ascii_forge.join("cache").join("vision").join("second.json"),
+    ];
+    let artifact = ascii_forge.join("artifacts").join("frame.png");
+    let config = config_file(home);
+
+    for cache_file in &cache_files {
+        fs::create_dir_all(cache_file.parent().expect("cache namespace"))
+            .expect("create cache namespace");
+        fs::write(cache_file, br#"{"cached":true}"#).expect("write cache file");
+    }
+    fs::create_dir_all(artifact.parent().expect("artifact directory"))
+        .expect("create artifact directory");
+    fs::write(&artifact, b"PNG").expect("write artifact");
+    write_config(home, "[render]\nfont_size = 18\n");
+
+    CacheFixture {
+        project,
+        cache_files,
+        artifact,
+        config,
+    }
+}
+
+fn assert_cache_fixture_intact(fixture: &CacheFixture) {
+    for cache_file in &fixture.cache_files {
+        assert!(
+            !cache_file.exists(),
+            "cache file must be removed: {cache_file:?}"
+        );
+    }
+    assert!(
+        fixture.artifact.is_file(),
+        "artifact must survive cache clear"
+    );
+    assert_eq!(fs::read(&fixture.artifact).expect("read artifact"), b"PNG");
+    assert!(fixture.config.is_file(), "config must survive cache clear");
+}
+
 #[test]
 fn help_lists_every_command() {
     let (_home, mut command) = isolated_command();
@@ -73,6 +123,42 @@ fn version_is_available() {
         .assert()
         .success()
         .stdout(contains("ascii-forge"));
+}
+
+#[test]
+fn cache_clear_removes_cache_files_and_preserves_artifacts_and_config() {
+    let (home, mut command) = isolated_command();
+    let fixture = cache_fixture(home.path());
+
+    command
+        .current_dir(&fixture.project)
+        .args(["cache", "clear"])
+        .assert()
+        .success()
+        .stdout(contains("removed 2 cached entries"));
+
+    assert_cache_fixture_intact(&fixture);
+}
+
+#[test]
+fn cache_clear_json_reports_the_cleared_path_and_count() {
+    let (home, mut command) = isolated_command();
+    let fixture = cache_fixture(home.path());
+
+    let assert = command
+        .current_dir(&fixture.project)
+        .args(["cache", "clear", "--json"])
+        .assert()
+        .success();
+    let report = stdout_json(&assert);
+
+    assert_eq!(report["removed"], 2);
+    let path = report["path"].as_str().expect("cleared path is a string");
+    assert!(
+        path.ends_with(".ascii-forge/cache"),
+        "unexpected cleared path: {path}"
+    );
+    assert_cache_fixture_intact(&fixture);
 }
 
 #[test]

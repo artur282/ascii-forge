@@ -78,11 +78,14 @@ pub enum Command {
     Preview(PreviewArgs),
     /// Import an image or video/GIF as an ASCII scene.
     Import(ImportArgs),
+    /// Clear the project-local response cache.
+    Cache(CacheArgs),
     /// List the FIGlet fonts and the resolved render font.
     Fonts,
     /// Check FFmpeg, its encoders, monospace fonts and the config directory.
     Doctor,
     /// Start the Model Context Protocol server over stdio.
+    #[cfg(feature = "mcp")]
     Mcp,
 }
 
@@ -315,6 +318,18 @@ pub struct ImportArgs {
     pub ffprobe_path: Option<PathBuf>,
 }
 
+#[derive(Debug, Args)]
+pub struct CacheArgs {
+    #[command(subcommand)]
+    pub command: CacheCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CacheCommand {
+    /// Remove cached responses under `.ascii-forge/cache`.
+    Clear,
+}
+
 /// Parse the format names accepted by `render --format`.
 fn parse_output_format(value: &str) -> std::result::Result<OutputFormat, String> {
     match value {
@@ -419,8 +434,10 @@ pub fn run() -> Result<()> {
         Command::Render(args) => run_render(args, json, no_color),
         Command::Preview(args) => run_preview(args, json, no_color),
         Command::Import(args) => run_import(args, json),
+        Command::Cache(args) => run_cache(args, json),
         Command::Fonts => run_fonts(json),
         Command::Doctor => run_doctor(json, no_color),
+        #[cfg(feature = "mcp")]
         Command::Mcp => crate::mcp::run_stdio(),
     }
 }
@@ -701,6 +718,39 @@ fn report_import(
         );
     }
     Ok(())
+}
+
+fn run_cache(args: CacheArgs, json: bool) -> Result<()> {
+    match args.command {
+        CacheCommand::Clear => clear_cache(json),
+    }
+}
+
+fn clear_cache(json: bool) -> Result<()> {
+    let cwd = env::current_dir().context("could not resolve the current directory")?;
+    let cache = ProjectCache::discover(&cwd);
+    let cleared = cache
+        .clear()
+        .with_context(|| format!("failed to clear {}", cache.cache_dir().display()))?;
+
+    if json {
+        print_json(&serde_json::json!({
+            "path": cleared.path().display().to_string(),
+            "removed": cleared.removed(),
+        }))
+    } else {
+        let noun = if cleared.removed() == 1 {
+            "entry"
+        } else {
+            "entries"
+        };
+        println!(
+            "removed {} cached {noun} from {}",
+            cleared.removed(),
+            cleared.path().display()
+        );
+        Ok(())
+    }
 }
 
 fn write_scene(path: &Path, scene: &Scene) -> Result<()> {

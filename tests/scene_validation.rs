@@ -115,6 +115,41 @@ fn valid_scene_passes_validation() {
 }
 
 #[test]
+fn scene_schema_does_not_describe_image_layers() {
+    let schema = schemars::schema_for!(Scene);
+    let rendered = serde_json::to_string(&schema).expect("schema must serialize to JSON");
+
+    assert!(
+        !rendered.contains("ImageLayer"),
+        "schema must not define ImageLayer: {rendered}"
+    );
+    assert!(
+        !rendered.contains("\"image\""),
+        "schema must not describe an image layer kind: {rendered}"
+    );
+}
+
+#[test]
+fn image_layers_are_rejected_by_deserialization() {
+    let json = serde_json::json!({
+        "version": SCENE_VERSION,
+        "seed": 0,
+        "canvas": { "cols": 8, "rows": 2 },
+        "layers": [{
+            "id": "legacy",
+            "kind": { "type": "image", "source": "photo.png" }
+        }],
+        "timeline": { "fps": 30, "frames": 1 }
+    });
+
+    let error = serde_json::from_value::<Scene>(json).expect_err("image layers are not supported");
+    assert!(
+        error.to_string().contains("unknown variant `image`"),
+        "unexpected error: {error}"
+    );
+}
+
+#[test]
 fn collects_all_errors_instead_of_stopping_at_the_first() {
     let mut scene = valid_scene();
     scene.version = SCENE_VERSION + 1;

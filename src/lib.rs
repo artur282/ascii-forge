@@ -5,6 +5,7 @@ pub mod effect;
 pub mod encode;
 pub mod figlet;
 pub mod import;
+#[cfg(feature = "mcp")]
 pub mod mcp;
 pub mod render;
 pub mod scene;

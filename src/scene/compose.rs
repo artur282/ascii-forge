@@ -15,9 +15,6 @@ pub enum ComposeError {
     #[error("frame {frame} is outside the timeline (0..{frames})")]
     FrameOutOfRange { frame: u32, frames: u32 },
 
-    #[error("layer \"{layer}\" is not supported for rendering: {kind}")]
-    UnsupportedLayer { layer: String, kind: &'static str },
-
     #[error("layer \"{layer}\" has no frames to compose")]
     EmptyFrames { layer: String },
 
@@ -123,12 +120,6 @@ fn render_layer(layer: &Layer, canvas: &Canvas, frame_index: u32) -> Result<Grid
             }
             let index = frame_index as usize % frames_layer.frames.len();
             frames_layer.frames[index].clone()
-        }
-        LayerKind::Image(_) => {
-            return Err(ComposeError::UnsupportedLayer {
-                layer: layer.id.clone(),
-                kind: "image",
-            });
         }
     })
 }

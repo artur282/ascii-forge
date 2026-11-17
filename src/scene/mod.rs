@@ -110,7 +110,6 @@ pub struct Layer {
 pub enum LayerKind {
     Text(TextLayer),
     Figlet(FigletLayer),
-    Image(ImageLayer),
     Grid(GridLayer),
     Frames(FramesLayer),
 }
@@ -131,17 +130,6 @@ pub struct FigletLayer {
     pub font: String,
     #[serde(default)]
     pub color: Option<Rgba>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ImageLayer {
-    pub source: String,
-    #[serde(default)]
-    pub charset: Option<String>,
-    #[serde(default)]
-    pub color: bool,
-    #[serde(default)]
-    pub braille: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
