@@ -1,7 +1,9 @@
 name: Release
 
 # Only tag pushes publish releases; ordinary branch pushes and pull requests
-# never run this workflow. Tests and lints stay in ci.yml.
+# never run this workflow. Tests and lints stay in ci.yml, but a release
+# preflight repeats the locked test suite and the tag/version check before
+# anything is built or published.
 on:
   push:
     tags:
@@ -10,12 +12,58 @@ on:
 permissions:
   contents: read
 
+# One release at a time across the whole repository: a queued tag waits for the
+# running release instead of publishing concurrently or cancelling it.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  preflight:
+    name: Release preflight
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify tag matches Cargo.toml version
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest_version=$(sed -n 's/^version = "\([^"]*\)"$/\1/p' Cargo.toml | head -n 1)
+          if [ -z "${manifest_version}" ]; then
+            echo "::error file=Cargo.toml::Could not read the package version from Cargo.toml"
+            exit 1
+          fi
+
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "${tag_version}" != "${manifest_version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match Cargo.toml version ${manifest_version}; tag v${manifest_version} instead"
+            exit 1
+          fi
+
+          echo "Tag ${GITHUB_REF_NAME} matches Cargo.toml version ${manifest_version}"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-preflight
+          cache-on-failure: true
+
+      - name: Install FFmpeg, fonts and espeak-ng
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core espeak-ng
+
+      - name: Run the locked test suite
+        run: cargo test --locked
+
   build:
     name: Build ${{ matrix.target }}
+    needs: preflight
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -24,17 +72,17 @@ jobs:
           - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
-          - os: macos-13
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             archive: tar.gz
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             archive: tar.gz
           - os: windows-2022
             target: x86_64-pc-windows-msvc
             archive: zip
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -45,7 +93,7 @@ jobs:
           shared-key: release-${{ matrix.target }}
 
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --locked --target ${{ matrix.target }}
 
       - name: Package tarball
         if: matrix.archive == 'tar.gz'
@@ -71,11 +119,11 @@ jobs:
           $staging = "dist/$name"
           New-Item -ItemType Directory -Force -Path $staging | Out-Null
           Copy-Item "target/$env:TARGET/release/ascii-forge.exe" "$staging/ascii-forge.exe"
-          Copy-Item README.md, LICENSE-MIT, LICENSE-APACHE, install.sh -Destination $staging
+          Copy-Item README.md, LICENSE-MIT, LICENSE-APACHE, install.sh, install.ps1 -Destination $staging
           Compress-Archive -Path "$staging/*" -DestinationPath "dist/$name.zip"
 
       - name: Upload archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ascii-forge-${{ matrix.target }}
           path: dist/ascii-forge-*-${{ matrix.target }}.${{ matrix.archive }}
@@ -88,7 +136,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -101,7 +149,7 @@ jobs:
           cat SHA256SUMS
 
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ASCII Forge ${{ github.ref_name }}
           files: |

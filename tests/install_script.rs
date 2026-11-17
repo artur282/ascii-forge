@@ -1,10 +1,11 @@
 #![cfg(unix)]
 
-//! Integration tests for the packaging `install.sh` script.
+//! Integration tests for the packaging installers and the release pipeline.
 //!
-//! The script targets Unix-like systems, so these tests only run on Unix.
+//! `install.sh` targets Unix-like systems, so these tests only run on Unix.
 //! They never invoke `cargo build`; a fake binary and a temporary `PREFIX`
-//! keep the tests fast and offline.
+//! keep the tests fast and offline. The Windows installer and the workflow
+//! files are checked structurally because PowerShell is not required.
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -17,6 +18,11 @@ const FAKE_BINARY: &str = "#!/bin/sh\necho fake ascii-forge\n";
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn repo_file(path: &str) -> String {
+    fs::read_to_string(repo_root().join(path))
+        .unwrap_or_else(|error| panic!("read {path}: {error}"))
 }
 
 fn installed_binary(prefix: &Path) -> PathBuf {
@@ -355,4 +361,152 @@ fn install_script_is_executable() {
         .permissions()
         .mode();
     assert_ne!(mode & 0o111, 0, "install.sh is not executable");
+}
+
+#[test]
+fn windows_installer_documents_every_supported_flag() {
+    let script = repo_file("install.ps1");
+    for flag in [
+        "-Prefix",
+        "-Uninstall",
+        "-Build",
+        "-NoBuild",
+        "-Binary",
+        "-Help",
+    ] {
+        assert!(
+            script.contains(flag),
+            "install.ps1 does not document {flag}:\n{script}"
+        );
+    }
+    assert!(
+        script.contains("Usage:"),
+        "install.ps1 has no usage section:\n{script}"
+    );
+    assert!(
+        script.contains("ascii-forge.exe"),
+        "install.ps1 does not name the installed executable:\n{script}"
+    );
+}
+
+#[test]
+fn windows_installer_targets_a_user_directory_without_admin_rights() {
+    let script = repo_file("install.ps1");
+    assert!(
+        script.contains("LOCALAPPDATA"),
+        "install.ps1 does not default to LOCALAPPDATA:\n{script}"
+    );
+    assert!(
+        script.contains(r"Programs\ascii-forge\bin"),
+        "install.ps1 does not document the default install directory:\n{script}"
+    );
+    for forbidden in ["RunAs", "sudo"] {
+        assert!(
+            !script.contains(forbidden),
+            "install.ps1 must never require administrator rights, found {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn release_workflow_builds_locked_release_binaries() {
+    let workflow = repo_file(".github/workflows/release.yml");
+    assert!(
+        workflow.contains("cargo build --release --locked --target ${{ matrix.target }}"),
+        "release.yml does not build every target with --locked:\n{workflow}"
+    );
+}
+
+#[test]
+fn release_workflow_runs_a_locked_test_preflight() {
+    let workflow = repo_file(".github/workflows/release.yml");
+    assert!(
+        workflow.contains("cargo test --locked"),
+        "release.yml has no locked test preflight:\n{workflow}"
+    );
+    assert!(
+        workflow.contains("needs: preflight"),
+        "release builds do not wait for the preflight job:\n{workflow}"
+    );
+}
+
+#[test]
+fn release_workflow_rejects_a_tag_that_does_not_match_cargo_toml() {
+    let workflow = repo_file(".github/workflows/release.yml");
+    assert!(
+        workflow.contains("GITHUB_REF_NAME#v"),
+        "release.yml does not strip the v prefix from the tag:\n{workflow}"
+    );
+    assert!(
+        workflow.contains("Cargo.toml"),
+        "release.yml does not read the version from Cargo.toml:\n{workflow}"
+    );
+    assert!(
+        workflow.contains("::error::"),
+        "release.yml does not fail with a clear annotation on mismatch:\n{workflow}"
+    );
+}
+
+#[test]
+fn release_workflow_serializes_tag_releases() {
+    let workflow = repo_file(".github/workflows/release.yml");
+    assert!(
+        workflow.contains("concurrency:"),
+        "release.yml has no concurrency group:\n{workflow}"
+    );
+    assert!(
+        workflow.contains("group: release"),
+        "release.yml does not serialize every release:\n{workflow}"
+    );
+    assert!(
+        workflow.contains("cancel-in-progress: false"),
+        "release.yml must queue releases instead of cancelling them:\n{workflow}"
+    );
+    assert_eq!(
+        workflow.matches("contents: write").count(),
+        1,
+        "contents: write must be granted to the publishing job only:\n{workflow}"
+    );
+}
+
+#[test]
+fn release_workflow_ships_the_windows_installer() {
+    let workflow = repo_file(".github/workflows/release.yml");
+    assert!(
+        workflow.contains("install.ps1"),
+        "release.yml does not package install.ps1 into the Windows archive:\n{workflow}"
+    );
+}
+
+#[test]
+fn ci_workflow_enforces_dependency_policy() {
+    let workflow = repo_file(".github/workflows/ci.yml");
+    assert!(
+        workflow.contains("cargo deny --locked check"),
+        "ci.yml does not run cargo deny:\n{workflow}"
+    );
+}
+
+#[test]
+fn ci_workflow_checks_every_supported_platform() {
+    let workflow = repo_file(".github/workflows/ci.yml");
+    for runner in ["macos-", "windows-"] {
+        assert!(
+            workflow.contains(runner),
+            "ci.yml has no {runner} job:\n{workflow}"
+        );
+    }
+    assert!(
+        workflow.contains("cargo check --locked"),
+        "ci.yml does not run cargo check --locked:\n{workflow}"
+    );
+}
+
+#[test]
+fn ci_workflow_checks_the_declared_msrv() {
+    let workflow = repo_file(".github/workflows/ci.yml");
+    assert!(
+        workflow.contains("rust-version"),
+        "ci.yml does not read rust-version from Cargo.toml:\n{workflow}"
+    );
 }

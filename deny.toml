@@ -1,6 +1,8 @@
 # cargo-deny configuration for ASCII Forge.
 #
-# Run locally with `cargo deny check`. This file is not wired into CI yet.
+# Run locally with `cargo deny check`. The `deny` job in
+# `.github/workflows/ci.yml` runs `cargo deny --locked check` on every push and
+# pull request, so this file is the single source of dependency policy.
 # The allow list covers permissive licenses present in the current dependency
 # tree. SPDX expressions with alternatives are accepted when any alternative is
 # allowed (for example `Unlicense OR MIT` passes through MIT).
@@ -12,6 +14,10 @@ no-default-features = false
 [advisories]
 version = 2
 yanked = "warn"
+ignore = [
+  { id = "RUSTSEC-2026-0543", reason = "transitive unmaintained chrono via rmcp/schemars; no vulnerability or unsound advisory matches" },
+  { id = "RUSTSEC-2026-0192", reason = "transitive unmaintained ttf-parser via ab_glyph; track a skrifa/owned_ttf_parser update" },
+]
 
 [licenses]
 version = 2
