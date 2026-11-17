@@ -79,6 +79,10 @@ pub struct CreateSceneParams {
     #[serde(default)]
     pub out: Option<String>,
 
+    /// Replace an existing scene file instead of failing with `output_exists`.
+    #[serde(default)]
+    pub overwrite: bool,
+
     /// Bypass the project response cache in prompt mode.
     #[serde(default)]
     pub no_cache: bool,
@@ -198,6 +202,10 @@ pub struct ExportParams {
     /// to `.ascii-forge/artifacts/exports/<scene-stem>.<ext>`.
     #[serde(default)]
     pub out: Option<String>,
+
+    /// Replace an existing artifact instead of failing with `output_exists`.
+    #[serde(default)]
+    pub overwrite: bool,
 
     /// Frame index for static formats. Animated formats always use the whole
     /// timeline.

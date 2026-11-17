@@ -41,6 +41,10 @@ impl ToolError {
         Self::new("io_error", message)
     }
 
+    pub fn output_exists(message: impl Into<String>) -> Self {
+        Self::new("output_exists", message)
+    }
+
     pub fn config(message: impl Into<String>) -> Self {
         Self::new("config_error", message)
     }

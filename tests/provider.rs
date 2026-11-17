@@ -6,9 +6,9 @@
 use std::fs;
 
 use ascii_forge::ai::provider::{
-    CachedProvider, MockProvider, OpenAiProvider, PlanRequest, PlanResponse, Provider,
-    ProviderError, ResponseFormat, TokenUsage, extract_json, request_body, resolve_api_key,
-    response_cache_key,
+    ALLOW_INSECURE_HTTP_ENV, CachedProvider, MockProvider, OpenAiProvider, PlanRequest,
+    PlanResponse, Provider, ProviderError, ResponseFormat, TokenUsage, allow_insecure_http,
+    extract_json, request_body, resolve_api_key, response_cache_key, validate_base_url_with,
 };
 use ascii_forge::cache::{PROJECT_DIR, ProjectCache};
 use serde_json::json;
@@ -332,4 +332,101 @@ fn request_body_includes_the_repair_text() {
         user.contains("beats[0].frames must be between 1 and 60"),
         "{user}"
     );
+}
+
+#[test]
+fn base_url_validation_allows_https_for_any_host() {
+    for url in [
+        "https://api.openai.com/v1",
+        "https://example.com/v1",
+        "https://localhost:8443/v1",
+    ] {
+        validate_base_url_with(url, false)
+            .unwrap_or_else(|error| panic!("{url} must be allowed: {error}"));
+    }
+}
+
+#[test]
+fn base_url_validation_allows_plain_http_on_loopback_hosts() {
+    for url in [
+        "http://localhost:11434/v1",
+        "http://LOCALHOST/v1",
+        "http://127.0.0.1:8080/v1",
+        "http://[::1]:8080/v1",
+        "http://::1/v1",
+    ] {
+        validate_base_url_with(url, false)
+            .unwrap_or_else(|error| panic!("{url} is loopback and must be allowed: {error}"));
+    }
+}
+
+#[test]
+fn base_url_validation_rejects_plain_http_to_remote_hosts() {
+    for url in [
+        "http://api.openai.com/v1",
+        "http://10.0.0.1:8080/v1",
+        "http://example.com",
+        "http://localhost.example.com/v1",
+        "http://127.0.0.1.example.com/v1",
+    ] {
+        let error =
+            validate_base_url_with(url, false).expect_err("remote plain http must be rejected");
+        assert!(
+            matches!(&error, ProviderError::InsecureBaseUrl { .. }),
+            "{url} produced {error:?}"
+        );
+        let message = error.to_string();
+        assert!(message.contains("clear text"), "{url}: {message}");
+        assert!(
+            message.contains(ALLOW_INSECURE_HTTP_ENV),
+            "{url}: {message}"
+        );
+    }
+}
+
+#[test]
+fn base_url_validation_accepts_the_explicit_insecure_override() {
+    validate_base_url_with("http://api.example.com/v1", true)
+        .expect("the explicit override allows remote plain http");
+
+    assert!(allow_insecure_http(|name| {
+        (name == ALLOW_INSECURE_HTTP_ENV).then(|| "1".to_string())
+    }));
+    assert!(!allow_insecure_http(|name| {
+        (name == ALLOW_INSECURE_HTTP_ENV).then(|| "true".to_string())
+    }));
+    assert!(!allow_insecure_http(|name| {
+        (name == ALLOW_INSECURE_HTTP_ENV).then(|| " 0 ".to_string())
+    }));
+    assert!(!allow_insecure_http(|_| None));
+}
+
+#[test]
+fn base_url_validation_rejects_non_http_schemes_and_empty_authorities() {
+    for url in [
+        "ftp://example.com/v1",
+        "api.openai.com/v1",
+        "https://",
+        "http:///v1",
+    ] {
+        let error = validate_base_url_with(url, true)
+            .expect_err("only absolute http(s) URLs with a host are valid");
+        assert!(
+            matches!(&error, ProviderError::InvalidBaseUrl { .. }),
+            "{url} produced {error:?}"
+        );
+    }
+}
+
+#[test]
+fn openai_provider_accepts_https_and_loopback_http() {
+    for url in [
+        "https://api.openai.com/v1",
+        "http://localhost:11434/v1",
+        "http://127.0.0.1:8080/v1",
+        "http://[::1]:8080/v1",
+    ] {
+        OpenAiProvider::new("secret", url, "gpt-5")
+            .unwrap_or_else(|error| panic!("{url} must build a provider: {error}"));
+    }
 }

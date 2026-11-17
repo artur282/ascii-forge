@@ -1,3 +1,5 @@
+#![cfg(feature = "mcp")]
+
 //! End-to-end tests for the MCP stdio server (Phase 6, spec S1).
 //!
 //! Every test drives a real `ascii-forge mcp` child over newline-delimited
@@ -74,6 +76,7 @@ impl McpClient {
             .env("XDG_CONFIG_HOME", home)
             .env_remove("ASCII_FORGE_API_KEY")
             .env_remove("OPENAI_API_KEY")
+            .env_remove("ASCII_FORGE_ALLOW_INSECURE_HTTP")
             .env_remove("ASCII_FORGE_FFMPEG")
             .env_remove("ASCII_FORGE_FONT")
             .env_remove("ASCII_FORGE_FONT_SIZE")
@@ -217,6 +220,13 @@ fn structured(result: &Value) -> &Value {
         .unwrap_or_else(|| panic!("tool result lacks structuredContent: {result}"))
 }
 
+/// Write the project config that `create_scene` prompt mode reads.
+fn write_config(home: &Path, contents: &str) {
+    let path = home.join("ascii-forge").join("config.toml");
+    fs::create_dir_all(path.parent().expect("config directory")).expect("create config directory");
+    fs::write(path, contents).expect("write config file");
+}
+
 /// Create the template scene used by preview and export tests.
 fn create_logo_scene(client: &mut McpClient) -> String {
     let result = client.call_tool(
@@ -292,6 +302,10 @@ fn create_scene_template_writes_valid_scene_json() {
     let scene_path = payload["scene_path"]
         .as_str()
         .expect("scene_path is a string");
+    assert!(
+        payload.get("absolute_path").is_none(),
+        "create_scene must not expose the absolute path: {payload}"
+    );
     let relative = Path::new(scene_path);
     assert!(!relative.is_absolute(), "scene_path must be relative");
     assert!(
@@ -326,6 +340,61 @@ fn create_scene_template_writes_valid_scene_json() {
     scene.validate().expect("written scene passes validation");
     assert_eq!(scene.seed, 7);
     assert_eq!(scene.timeline.frames, 60);
+
+    client.shutdown();
+}
+
+#[test]
+fn create_scene_rejects_existing_output_unless_overwrite_is_set() {
+    let project = TestProject::new();
+    let mut client = project.client();
+    client.initialize();
+
+    let out = ".ascii-forge/artifacts/scenes/custom.json";
+    let first = client.call_tool(
+        "create_scene",
+        json!({ "template": "logo", "title": "NEBULA", "seed": 1, "out": out }),
+    );
+    assert_eq!(first.get("isError"), Some(&json!(false)), "{first}");
+    assert_eq!(structured(&first)["scene_path"], json!(out));
+    let before = fs::read(project.root().join(out)).expect("read first scene");
+
+    let conflict = client.call_tool(
+        "create_scene",
+        json!({ "template": "logo", "title": "NEBULA", "seed": 1, "out": out }),
+    );
+    assert_eq!(conflict.get("isError"), Some(&json!(true)), "{conflict}");
+    let payload = structured(&conflict);
+    assert_eq!(payload["code"], json!("output_exists"));
+    assert!(
+        payload["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("overwrite")),
+        "conflict must explain the overwrite flag: {payload}"
+    );
+    assert_eq!(
+        fs::read(project.root().join(out)).expect("read scene after conflict"),
+        before,
+        "a rejected create_scene must not modify the existing scene"
+    );
+
+    let replaced = client.call_tool(
+        "create_scene",
+        json!({
+            "template": "logo",
+            "title": "NEBULA",
+            "seed": 2,
+            "out": out,
+            "overwrite": true,
+        }),
+    );
+    assert_eq!(replaced.get("isError"), Some(&json!(false)), "{replaced}");
+    assert_eq!(structured(&replaced)["seed"], json!(2));
+    let after = fs::read(project.root().join(out)).expect("read replaced scene");
+    assert_ne!(after, before, "overwrite must replace the scene contents");
+    let scene: ascii_forge::scene::Scene =
+        serde_json::from_slice(&after).expect("replaced scene is valid Scene JSON");
+    assert_eq!(scene.seed, 2);
 
     client.shutdown();
 }
@@ -449,6 +518,124 @@ fn export_png_writes_decodable_artifact() {
         );
         assert_eq!(structured(&outside)["code"], json!("unsafe_path"));
     }
+
+    client.shutdown();
+}
+
+#[test]
+fn export_rejects_existing_artifact_unless_overwrite_is_set() {
+    let project = TestProject::new();
+    let mut client = project.client();
+    client.initialize();
+    let scene_path = create_logo_scene(&mut client);
+
+    let first = client.call_tool(
+        "export",
+        json!({ "scene_path": scene_path, "format": "png" }),
+    );
+    assert_eq!(first.get("isError"), Some(&json!(false)), "{first}");
+    let path = structured(&first)["path"]
+        .as_str()
+        .expect("path is a string")
+        .to_string();
+    let before = fs::read(project.root().join(&path)).expect("read first PNG");
+
+    let conflict = client.call_tool(
+        "export",
+        json!({ "scene_path": scene_path, "format": "png" }),
+    );
+    assert_eq!(conflict.get("isError"), Some(&json!(true)), "{conflict}");
+    let payload = structured(&conflict);
+    assert_eq!(payload["code"], json!("output_exists"));
+    assert!(
+        payload["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("overwrite")),
+        "conflict must explain the overwrite flag: {payload}"
+    );
+    assert_eq!(
+        fs::read(project.root().join(&path)).expect("read PNG after conflict"),
+        before,
+        "a rejected export must leave the existing artifact untouched"
+    );
+
+    let replaced = client.call_tool(
+        "export",
+        json!({
+            "scene_path": scene_path,
+            "format": "png",
+            "overwrite": true,
+        }),
+    );
+    assert_eq!(replaced.get("isError"), Some(&json!(false)), "{replaced}");
+    let replaced_payload = structured(&replaced);
+    assert_eq!(replaced_payload["path"], json!(path));
+    assert!(
+        replaced_payload["bytes"]
+            .as_u64()
+            .is_some_and(|bytes| bytes > 0),
+        "overwritten export must report its size: {replaced_payload}"
+    );
+    let after = fs::read(project.root().join(&path)).expect("read replaced PNG");
+    image::load_from_memory(&after).expect("replaced PNG decodes");
+
+    let exports = project.root().join(".ascii-forge/artifacts/exports");
+    let staging: Vec<String> = fs::read_dir(&exports)
+        .expect("list exports directory")
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with('.'))
+        .collect();
+    assert!(
+        staging.is_empty(),
+        "atomic replacement must not leave staging files behind: {staging:?}"
+    );
+
+    client.shutdown();
+}
+
+#[test]
+fn create_scene_prompt_mode_rejects_unsupported_provider_names() {
+    let project = TestProject::new();
+    write_config(project.home.path(), "[ai]\nprovider = \"anthropic\"\n");
+    let mut client = project.client();
+    client.initialize();
+
+    let result = client.call_tool("create_scene", json!({ "prompt": "a neon nebula" }));
+    assert_eq!(result.get("isError"), Some(&json!(true)), "{result}");
+    let payload = structured(&result);
+    assert_eq!(payload["code"], json!("provider_error"));
+    let message = payload["message"].as_str().expect("message is a string");
+    assert!(message.contains("anthropic"), "{message}");
+    assert!(message.contains("openai-compatible"), "{message}");
+    assert!(
+        !message.contains("API key"),
+        "an unsupported provider must be rejected before key resolution: {message}"
+    );
+
+    client.shutdown();
+}
+
+#[test]
+fn create_scene_prompt_mode_keeps_supported_provider_names() {
+    let project = TestProject::new();
+    write_config(
+        project.home.path(),
+        "[ai]\nprovider = \"openai-compatible\"\n",
+    );
+    let mut client = project.client();
+    client.initialize();
+
+    let result = client.call_tool("create_scene", json!({ "prompt": "a neon nebula" }));
+    assert_eq!(result.get("isError"), Some(&json!(true)), "{result}");
+    let payload = structured(&result);
+    assert_eq!(payload["code"], json!("provider_error"));
+    assert!(
+        payload["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("API key")),
+        "a supported provider must reach key resolution: {payload}"
+    );
 
     client.shutdown();
 }

@@ -31,6 +31,7 @@ pub fn export_scene(params: ExportParams) -> Result<Value, ToolError> {
         gif_colors,
         crf,
         preset,
+        overwrite,
     } = params;
 
     if let Some(colors) = gif_colors
@@ -55,6 +56,7 @@ pub fn export_scene(params: ExportParams) -> Result<Value, ToolError> {
         None => paths::default_export_relative(&scene_file, format.extension()),
     };
     let absolute = paths::prepare_output_path(&cwd, &relative)?;
+    paths::ensure_writable_target(&absolute, &relative, overwrite)?;
     paths::ensure_parent(&absolute)?;
 
     let render_options = render_options(&scene, &settings);
@@ -64,33 +66,32 @@ pub fn export_scene(params: ExportParams) -> Result<Value, ToolError> {
         1
     };
 
-    match format {
+    let staged = paths::staging_path(&absolute);
+    let rendered = match format {
         ExportFormat::Png => {
             let composed = compose(&scene, frame)?;
-            raster::render_png(&composed, &render_options, &absolute).map_err(render_error)?;
+            raster::render_png(&composed, &render_options, &staged).map_err(render_error)
         }
         ExportFormat::Jpeg => {
             let composed = compose(&scene, frame)?;
-            raster::render_jpeg(&composed, &render_options, &absolute).map_err(render_error)?;
+            raster::render_jpeg(&composed, &render_options, &staged).map_err(render_error)
         }
         ExportFormat::Svg => {
             let composed = compose(&scene, frame)?;
             let document = svg::render_svg(&composed, &render_options).map_err(render_error)?;
-            fs::write(&absolute, document).map_err(|error| write_error(&absolute, error))?;
+            fs::write(&staged, document).map_err(|error| write_error(&absolute, error))
         }
         ExportFormat::Ansi => {
             let composed = compose(&scene, frame)?;
-            fs::write(&absolute, raster::frame_to_ansi(&composed, true))
-                .map_err(|error| write_error(&absolute, error))?;
+            fs::write(&staged, raster::frame_to_ansi(&composed, true))
+                .map_err(|error| write_error(&absolute, error))
         }
         ExportFormat::Text => {
             let composed = compose(&scene, frame)?;
-            fs::write(&absolute, raster::frame_to_text(&composed))
-                .map_err(|error| write_error(&absolute, error))?;
+            fs::write(&staged, raster::frame_to_text(&composed))
+                .map_err(|error| write_error(&absolute, error))
         }
-        ExportFormat::Gif => {
-            export_gif(&scene, gif_colors, &render_options, &absolute)?;
-        }
+        ExportFormat::Gif => export_gif(&scene, gif_colors, &render_options, &staged),
         ExportFormat::Mp4 | ExportFormat::WebM => {
             let ffmpeg = settings
                 .config
@@ -105,10 +106,15 @@ pub fn export_scene(params: ExportParams) -> Result<Value, ToolError> {
                 preset,
                 &ffmpeg,
                 &render_options,
-                &absolute,
-            )?;
+                &staged,
+            )
         }
+    };
+    if let Err(error) = rendered {
+        let _ = fs::remove_file(&staged);
+        return Err(error);
     }
+    paths::finalize_atomic(&staged, &absolute)?;
 
     let bytes = fs::metadata(&absolute)
         .map_err(|error| write_error(&absolute, error))?

@@ -1,6 +1,5 @@
 //! `create_scene` implementation: offline templates and AI prompt mode.
 
-use std::fs;
 use std::path::Path;
 
 use serde_json::{Value, json};
@@ -19,6 +18,9 @@ use super::error::{ToolError, redact_secret};
 use super::params::{CreateSceneParams, TemplateName};
 use super::paths;
 
+/// Providers the current OpenAI-compatible client can actually reach.
+const SUPPORTED_PROVIDERS: [&str; 2] = ["openai", "openai-compatible"];
+
 /// A scene plus the generation metadata reported to the MCP client.
 struct PreparedScene {
     plan: ScenePlan,
@@ -33,6 +35,17 @@ struct PreparedScene {
 /// Create and write a scene, returning the structured tool payload.
 pub fn create_scene(params: CreateSceneParams) -> Result<Value, ToolError> {
     let cwd = paths::current_dir()?;
+    let explicit_relative = params
+        .out
+        .as_deref()
+        .map(|raw| paths::safe_relative(raw, "out"))
+        .transpose()?;
+    // Reject an existing explicit target before spending a provider call.
+    if let Some(relative) = explicit_relative.as_deref() {
+        let absolute = paths::prepare_output_path(&cwd, relative)?;
+        paths::ensure_writable_target(&absolute, relative, params.overwrite)?;
+    }
+
     let prepared = match (params.prompt.as_deref(), params.template) {
         (Some(prompt), None) => prepare_prompt(prompt, &params, &cwd)?,
         (None, Some(template)) => prepare_template(template, &params)?,
@@ -48,25 +61,20 @@ pub fn create_scene(params: CreateSceneParams) -> Result<Value, ToolError> {
         }
     };
 
-    let relative = match params.out.as_deref() {
-        Some(raw) => paths::safe_relative(raw, "out")?,
+    let relative = match explicit_relative {
+        Some(relative) => relative,
         None => paths::default_scene_relative(&prepared.plan.title, prepared.plan.seed),
     };
     let absolute = paths::prepare_output_path(&cwd, &relative)?;
+    paths::ensure_writable_target(&absolute, &relative, params.overwrite)?;
     paths::ensure_parent(&absolute)?;
 
     let contents = serde_json::to_string_pretty(&prepared.scene)
         .map_err(|error| ToolError::io(format!("could not serialize the scene: {error}")))?;
-    fs::write(&absolute, contents).map_err(|error| {
-        ToolError::io(format!(
-            "could not write scene {}: {error}",
-            absolute.display()
-        ))
-    })?;
+    paths::write_atomic(&absolute, contents.as_bytes())?;
 
     Ok(json!({
         "scene_path": paths::relative_display(&cwd, &absolute)?,
-        "absolute_path": absolute.display().to_string(),
         "origin": prepared.origin,
         "template": prepared.template,
         "frames": prepared.scene.timeline.frames,
@@ -135,6 +143,7 @@ fn prepare_prompt(
         .clone()
         .unwrap_or_else(|| "openai".to_string())
         .to_lowercase();
+    validate_provider_name(&provider_name)?;
     let model = settings
         .config
         .ai
@@ -210,6 +219,15 @@ fn prepare_prompt(
         cached,
         usage,
     })
+}
+
+fn validate_provider_name(provider_name: &str) -> Result<(), ToolError> {
+    if SUPPORTED_PROVIDERS.contains(&provider_name) {
+        return Ok(());
+    }
+    Err(ToolError::provider(format!(
+        "unsupported AI provider `{provider_name}`: only `openai` and `openai-compatible` are supported; set ai.provider in the config"
+    )))
 }
 
 fn generation_error(error: GenerateError, api_key: &str) -> ToolError {

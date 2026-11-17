@@ -8,6 +8,7 @@
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::cache::PROJECT_DIR;
 use crate::scene::Scene;
@@ -22,6 +23,9 @@ pub const SCENES_DIR: &str = "scenes";
 pub const EXPORTS_DIR: &str = "exports";
 /// Upper bound for a title-derived file name.
 const MAX_SLUG_CHARS: usize = 48;
+
+/// Keeps staging names unique when several writes run in one process.
+static STAGING_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Current working directory, which is the project root for every tool call.
 pub fn current_dir() -> Result<PathBuf, ToolError> {
@@ -143,6 +147,68 @@ pub fn ensure_parent(path: &Path) -> Result<(), ToolError> {
         })?;
     }
     Ok(())
+}
+
+/// Fail with `output_exists` when `target` exists and replacement is disabled.
+pub fn ensure_writable_target(
+    target: &Path,
+    relative: &Path,
+    overwrite: bool,
+) -> Result<(), ToolError> {
+    match fs::symlink_metadata(target) {
+        Ok(_) if overwrite => Ok(()),
+        Ok(_) => Err(ToolError::output_exists(format!(
+            "`{}` already exists; pass `overwrite: true` to replace it",
+            relative.display()
+        ))),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(ToolError::io(format!(
+            "could not inspect output path `{}`: {error}",
+            relative.display()
+        ))),
+    }
+}
+
+/// Same-directory staging path that preserves the target extension.
+///
+/// Video encoders pick their muxer from the output extension, so the staging
+/// file must look like the final artifact.
+pub fn staging_path(target: &Path) -> PathBuf {
+    let stem = target
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or("artifact");
+    let unique = STAGING_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let process = std::process::id();
+    let name = match target.extension().and_then(|extension| extension.to_str()) {
+        Some(extension) if !extension.is_empty() => {
+            format!(".{stem}.{process}.{unique}.{extension}")
+        }
+        _ => format!(".{stem}.{process}.{unique}.tmp"),
+    };
+    target.with_file_name(name)
+}
+
+/// Write `contents` to a sibling staging file and rename it over `target`.
+pub fn write_atomic(target: &Path, contents: &[u8]) -> Result<(), ToolError> {
+    let staged = staging_path(target);
+    if let Err(error) = fs::write(&staged, contents) {
+        let _ = fs::remove_file(&staged);
+        return Err(ToolError::io(format!(
+            "could not write {}: {error}",
+            target.display()
+        )));
+    }
+    finalize_atomic(&staged, target)
+}
+
+/// Rename a finished staging file over its target, discarding it on failure.
+pub fn finalize_atomic(staged: &Path, target: &Path) -> Result<(), ToolError> {
+    fs::rename(staged, target).map_err(|error| {
+        let _ = fs::remove_file(staged);
+        ToolError::io(format!("could not replace {}: {error}", target.display()))
+    })
 }
 
 /// Read, parse and validate a scene named relative to the project root.
@@ -311,6 +377,33 @@ fn slugify(title: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn staging_paths_stay_beside_the_target_and_keep_its_extension() {
+        let target = Path::new("/project/.ascii-forge/artifacts/exports/demo.mp4");
+        let staged = staging_path(target);
+
+        assert_eq!(staged.parent(), target.parent());
+        assert_eq!(
+            staged.extension().and_then(|extension| extension.to_str()),
+            Some("mp4"),
+            "video staging files must keep the muxer extension"
+        );
+        assert_ne!(staged, target);
+        assert_ne!(
+            staging_path(target),
+            staged,
+            "each write needs its own staging name"
+        );
+
+        let extensionless = staging_path(Path::new("/project/scene"));
+        assert_eq!(
+            extensionless
+                .extension()
+                .and_then(|extension| extension.to_str()),
+            Some("tmp")
+        );
+    }
 
     #[test]
     fn slugify_produces_safe_names() {

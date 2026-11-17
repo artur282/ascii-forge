@@ -22,6 +22,9 @@ pub const AI_CACHE_NAMESPACE: &str = "ai";
 /// Environment variables checked for an API key, in precedence order.
 pub const API_KEY_ENV_VARS: [&str; 2] = ["ASCII_FORGE_API_KEY", "OPENAI_API_KEY"];
 
+/// Set to `1` to allow plain http provider URLs for trusted non-loopback hosts.
+pub const ALLOW_INSECURE_HTTP_ENV: &str = "ASCII_FORGE_ALLOW_INSECURE_HTTP";
+
 const SCENE_PLAN_SCHEMA_NAME: &str = "scene_plan";
 const DEFAULT_TEMPERATURE: f64 = 0.7;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -75,6 +78,13 @@ pub enum ProviderError {
     #[error("invalid provider base URL `{url}`: expected an absolute http(s) URL")]
     InvalidBaseUrl { url: String },
 
+    /// The base URL would send the API key over an unencrypted connection.
+    #[error(
+        "insecure provider base URL `{url}`: plain http would send the API key in clear text; \
+         use https or set ASCII_FORGE_ALLOW_INSECURE_HTTP=1 for a trusted endpoint"
+    )]
+    InsecureBaseUrl { url: String },
+
     /// The provider answered with an error status.
     #[error("provider returned HTTP {status}: {body}")]
     Http { status: u16, body: String },
@@ -124,6 +134,48 @@ pub fn resolve_api_key(lookup: impl Fn(&str) -> Option<String>) -> Result<String
         }
     }
     Err(ProviderError::MissingApiKey)
+}
+
+/// Read the plain-http override from the process environment.
+pub fn allow_insecure_http_from_env() -> bool {
+    allow_insecure_http(|name| std::env::var(name).ok())
+}
+
+/// Testable core of [`allow_insecure_http_from_env`]; only `1` enables it.
+pub fn allow_insecure_http(lookup: impl Fn(&str) -> Option<String>) -> bool {
+    lookup(ALLOW_INSECURE_HTTP_ENV).is_some_and(|value| value.trim() == "1")
+}
+
+/// Validate a base URL with the process environment's insecure-http policy.
+pub fn validate_base_url(base_url: &str) -> Result<(), ProviderError> {
+    validate_base_url_with(base_url, allow_insecure_http_from_env())
+}
+
+/// Testable base URL policy.
+///
+/// HTTPS is accepted for every host. Plain http is accepted only for loopback
+/// hosts, or for any host when `allow_insecure` is explicitly set.
+pub fn validate_base_url_with(base_url: &str, allow_insecure: bool) -> Result<(), ProviderError> {
+    let Some((scheme, authority)) = split_scheme_authority(base_url) else {
+        return Err(ProviderError::InvalidBaseUrl {
+            url: base_url.to_string(),
+        });
+    };
+
+    if scheme.eq_ignore_ascii_case("https") {
+        return Ok(());
+    }
+    if !scheme.eq_ignore_ascii_case("http") {
+        return Err(ProviderError::InvalidBaseUrl {
+            url: base_url.to_string(),
+        });
+    }
+    if allow_insecure || is_loopback_authority(authority) {
+        return Ok(());
+    }
+    Err(ProviderError::InsecureBaseUrl {
+        url: base_url.to_string(),
+    })
 }
 
 /// Extract the first balanced JSON object from model content.
@@ -233,11 +285,7 @@ impl OpenAiProvider {
         let base_url = require_non_empty(base_url.into(), "base URL")?;
         let model = require_non_empty(model.into(), "model")?;
 
-        if !is_http_url(&base_url) {
-            return Err(ProviderError::InvalidBaseUrl {
-                url: base_url.clone(),
-            });
-        }
+        validate_base_url(&base_url)?;
 
         let agent = ureq::AgentBuilder::new()
             .timeout_connect(CONNECT_TIMEOUT)
@@ -463,11 +511,33 @@ fn require_non_empty(value: String, field: &'static str) -> Result<String, Provi
     }
 }
 
-fn is_http_url(value: &str) -> bool {
-    let rest = value
-        .strip_prefix("https://")
-        .or_else(|| value.strip_prefix("http://"));
-    matches!(rest, Some(host) if !host.trim_matches('/').is_empty())
+fn split_scheme_authority(value: &str) -> Option<(&str, &str)> {
+    let (scheme, rest) = value.split_once("://")?;
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    if authority.is_empty() {
+        return None;
+    }
+    Some((scheme, authority))
+}
+
+fn is_loopback_authority(authority: &str) -> bool {
+    let host_port = authority.rsplit('@').next().unwrap_or(authority);
+    let host = if let Some(rest) = host_port.strip_prefix('[') {
+        let Some(end) = rest.find(']') else {
+            return false;
+        };
+        let tail = &host_port[end + 2..];
+        if !tail.is_empty() && !tail.starts_with(':') {
+            return false;
+        }
+        &host_port[..end + 2]
+    } else if host_port == "::1" || host_port.starts_with("::1:") {
+        "::1"
+    } else {
+        host_port.split(':').next().unwrap_or(host_port)
+    };
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]" | "::1")
 }
 
 fn user_message(request: &PlanRequest) -> String {
