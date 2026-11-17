@@ -72,4 +72,4 @@ Test runner: `cargo test`, `cargo fmt --all -- --check`, `cargo clippy --all-tar
 - MCP: 6 protocol tests pass; manual release-binary handshake listed five tools, created a template scene, returned a bounded preview and exported a PNG.
 - Installer: 10 tests pass; manual archive extraction + `install.sh --no-build` + `--version` succeeded; `SHA256SUMS` verified.
 - Release workflow: PyYAML parse succeeds and the trigger is only `push.tags: v*`.
-- Phase 6 committed as `b8340d7` and `17f7f11`, pushed to `main`; GitHub Actions run 44105977135 is green. Issues #16/#17 and milestone 6 are closed.
+- Phase 6 committed as `b8340d7` and `17f7f11`, pushed to `main`; GitHub Actions run 44105977135 is green. Issues #16/#17 and milestone 6 are closed. Tag `v0.1.0` released; release run 44112589013 is green.

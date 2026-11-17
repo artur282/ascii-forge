@@ -4,6 +4,8 @@ AI-driven ASCII art, images, GIFs and videos from the command line.
 
 > **Status:** Phases 1-6 are implemented; CI is green. The 0.1.0 hardening pass adds
 > thumbnails, release checks and stricter MCP/provider security.
+>
+> **Release:** [v0.1.0](https://github.com/artur282/ascii-forge/releases/tag/v0.1.0).
 > The scene format, text/FIGlet layers, static PNG/JPEG/ANSI/SVG rendering,
 > timeline/keyframe animation, deterministic effects, terminal preview, GIF
 > export, MP4/WebM video, audio muxing, voice-over, AI scene planning, offline

@@ -121,6 +121,7 @@ Completed in Phase 1:
 - Release-package simulation: archive contains binary, README, both licenses and `install.sh`; `SHA256SUMS` verified; extracted archive installed with `--no-build` and `--version` ran.
 - Release workflow YAML parsed; it triggers only on `v*` tags.
 - Issues #16 and #17 closed; milestone 6 closed.
+- Tag `v0.1.0` released with Linux, macOS x86_64/arm64 and Windows archives plus `SHA256SUMS`.
 
 ## Out of scope for v1
 
