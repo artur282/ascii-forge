@@ -17,5 +17,8 @@
 .DS_Store
 *.swp
 
+# Local agent tooling
+.atl/
+
 # Logs
 *.log
