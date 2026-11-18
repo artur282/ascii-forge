@@ -195,6 +195,10 @@ tag release process.
   generates a scene through an OpenAI-compatible provider.
 - `ascii-forge generate --template promo --title NEBULA --tagline "navigate the noise"`
   builds a scene offline.
+- `ascii-forge make "<TITLE>" --template <name> --out image.png` renders one
+  static image in a single offline step; no network or API key is used.
+- `ascii-forge capabilities [--json]` prints the command, format and template
+  catalog for agents.
 - `ascii-forge render scene.json --format png|jpeg|svg|ansi|text --frame N --out ...`
   composes one frame from text/FIGlet/grid layers and writes it.
 - `ascii-forge render scene.json --format gif --out animation.gif` streams every
@@ -304,6 +308,15 @@ Release archives and the install script are documented in
 Implemented today:
 
 ```bash
+# One-shot still image: no network, no API key, one command
+ascii-forge make "NEBULA" --template logo --tagline "navigate the noise" \
+  --out nebula.png
+ascii-forge make "Shipping v1" --template promo --json
+
+# Machine-readable catalog for agents
+ascii-forge capabilities
+ascii-forge capabilities --json
+
 # Import a still image (monochrome, color, braille, edges or dithering)
 ascii-forge import photo.png --cols 80 --out photo.json
 ascii-forge import photo.png --cols 100 --color --out photo-color.json
@@ -380,6 +393,30 @@ never calls the network.
 `import` flags: `--cols`, `--rows`, `--charset`, `--color`, `--braille`,
 `--dither`, `--edges`, `--invert`, `--background`, `--foreground`, `--fps`,
 `--max-frames`, `--ffmpeg-path`, `--ffprobe-path`, `--out` and `--json`.
+
+### One-shot images for agents
+
+`make` collapses the offline-template path into a single deterministic command
+that needs no network, no API key and no intermediate scene file:
+
+```bash
+ascii-forge make "NEBULA" --template logo --tagline "navigate the noise" \
+  --out nebula.png --json
+```
+
+- `--template` accepts `logo`, `promo`, `glitch`, `matrix` or `lower-third`
+  and defaults to `logo`.
+- `--out` defaults to a slug of the title plus the format extension
+  (`nebula.png`).
+- `--format` accepts `png`, `jpeg` or `svg`; `--frame` defaults to the settled
+  last frame so the image is never blank.
+- `--json` prints one object with `output`, `format`, `width`, `height`,
+  `template`, `title`, `tagline`, `seed`, `frame` and `frames`.
+
+`capabilities --json` is the discovery contract for scripted agents: command
+list, formats, templates, charsets, effects and worked examples. The
+agent-facing skill ships in
+[`skills/ascii-forge/SKILL.md`](skills/ascii-forge/SKILL.md).
 
 `--output` is accepted as an alias of `--out`. `preview` controls:
 

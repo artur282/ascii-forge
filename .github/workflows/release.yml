@@ -107,6 +107,8 @@ jobs:
           mkdir -p "${staging}"
           cp "target/${TARGET}/release/ascii-forge" "${staging}/"
           cp README.md LICENSE-MIT LICENSE-APACHE install.sh "${staging}/"
+          mkdir -p "${staging}/skills"
+          cp -R skills/ascii-forge "${staging}/skills/"
           tar -czf "dist/${name}.tar.gz" -C "${staging}" .
 
       - name: Package zip
@@ -120,6 +122,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path $staging | Out-Null
           Copy-Item "target/$env:TARGET/release/ascii-forge.exe" "$staging/ascii-forge.exe"
           Copy-Item README.md, LICENSE-MIT, LICENSE-APACHE, install.sh, install.ps1 -Destination $staging
+          New-Item -ItemType Directory -Force -Path "$staging/skills" | Out-Null
+          Copy-Item "skills/ascii-forge" -Destination "$staging/skills" -Recurse
           Compress-Archive -Path "$staging/*" -DestinationPath "dist/$name.zip"
 
       - name: Upload archive

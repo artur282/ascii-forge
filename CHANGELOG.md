@@ -4,6 +4,18 @@ All notable user-visible changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 Semantic Versioning once it reaches 1.0.
 
+## [Unreleased]
+
+### Added
+
+- `ascii-forge make`: one-shot offline template render to PNG, JPEG or SVG
+  with `--json` metadata, a slug default output name and a settled-frame
+  default.
+- `ascii-forge capabilities`: human summary and a `--json` catalog of
+  commands, formats, templates, charsets, effects and examples.
+- `skills/ascii-forge/SKILL.md`, an agent skill shipped inside release
+  archives.
+
 ## [0.1.0] - 2026-11-17
 
 ### Added
