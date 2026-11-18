@@ -1,5 +1,7 @@
 //! Command line interface: argument parsing, configuration and diagnostics.
 
+mod capabilities;
+
 use std::env;
 use std::fs;
 use std::fs::File;
@@ -26,7 +28,7 @@ use crate::import::{
 };
 use crate::render::{RenderOptions, raster, svg};
 use crate::scene::compose::compose_frame;
-use crate::scene::{OutputFormat, Rgba, Scene};
+use crate::scene::{Frame, OutputFormat, Rgba, Scene};
 use crate::templates::{TemplateParams, build as build_template};
 use crate::tui;
 
@@ -72,6 +74,8 @@ pub struct Cli {
 pub enum Command {
     /// Generate a scene from a text prompt or an offline template.
     Generate(GenerateArgs),
+    /// Generate and render a static image in one step from an offline template.
+    Make(MakeArgs),
     /// Render a scene to an image, text, animated GIF or video.
     Render(RenderArgs),
     /// Preview a scene as animated ANSI art in the terminal.
@@ -84,6 +88,8 @@ pub enum Command {
     Fonts,
     /// Check FFmpeg, its encoders, monospace fonts and the config directory.
     Doctor,
+    /// Print the capability catalog for agents.
+    Capabilities,
     /// Start the Model Context Protocol server over stdio.
     #[cfg(feature = "mcp")]
     Mcp,
@@ -146,12 +152,44 @@ pub struct GenerateArgs {
     pub output: PathBuf,
 }
 
+#[derive(Debug, Args)]
+pub struct MakeArgs {
+    /// Title rendered by the template.
+    #[arg(value_name = "TITLE")]
+    pub title: String,
+
+    /// Offline template; no network or API key is used.
+    #[arg(long, value_enum, default_value = "logo")]
+    pub template: TemplateArg,
+
+    /// Tagline rendered below the title.
+    #[arg(long)]
+    pub tagline: Option<String>,
+
+    /// Deterministic plan seed.
+    #[arg(long, default_value_t = 0)]
+    pub seed: u64,
+
+    /// Frame to render; defaults to the settled last frame.
+    #[arg(long)]
+    pub frame: Option<u32>,
+
+    /// Where to write the image; defaults to a slug of the title.
+    #[arg(short, long = "out", alias = "output", value_name = "FILE")]
+    pub output: Option<PathBuf>,
+
+    /// Static output format (png, jpeg or svg).
+    #[arg(long, default_value = "png", value_parser = parse_static_format)]
+    pub format: OutputFormat,
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum TemplateArg {
     Logo,
     Promo,
     Glitch,
     Matrix,
+    #[value(alias = "lower_third")]
     LowerThird,
 }
 
@@ -347,6 +385,18 @@ fn parse_output_format(value: &str) -> std::result::Result<OutputFormat, String>
     }
 }
 
+/// Parse the static format names accepted by `make --format`.
+fn parse_static_format(value: &str) -> std::result::Result<OutputFormat, String> {
+    match value {
+        "png" => Ok(OutputFormat::Png),
+        "jpeg" => Ok(OutputFormat::Jpeg),
+        "svg" => Ok(OutputFormat::Svg),
+        other => Err(format!(
+            "unknown format `{other}` (expected png, jpeg or svg)"
+        )),
+    }
+}
+
 fn parse_palette_size(value: &str) -> std::result::Result<u16, String> {
     let size: u16 = value
         .parse()
@@ -431,12 +481,14 @@ pub fn run() -> Result<()> {
 
     match command {
         Command::Generate(args) => run_generate(args, json),
+        Command::Make(args) => run_make(args, json),
         Command::Render(args) => run_render(args, json, no_color),
         Command::Preview(args) => run_preview(args, json, no_color),
         Command::Import(args) => run_import(args, json),
         Command::Cache(args) => run_cache(args, json),
         Command::Fonts => run_fonts(json),
         Command::Doctor => run_doctor(json, no_color),
+        Command::Capabilities => capabilities::run(json),
         #[cfg(feature = "mcp")]
         Command::Mcp => crate::mcp::run_stdio(),
     }
@@ -794,6 +846,182 @@ fn report_generation(
         );
     }
     Ok(())
+}
+
+/// Render an offline template to a static image in one step.
+fn run_make(args: MakeArgs, json: bool) -> Result<()> {
+    let settings = Settings::load()?;
+    let title = args.title.trim().to_string();
+    if title.is_empty() {
+        bail!("title must not be empty");
+    }
+
+    let tagline = args
+        .tagline
+        .as_deref()
+        .map(str::trim)
+        .filter(|tagline| !tagline.is_empty())
+        .map(str::to_string);
+    let plan = build_template(
+        args.template.into(),
+        &TemplateParams {
+            title: title.clone(),
+            tagline: tagline.clone(),
+            seed: args.seed,
+        },
+    )?;
+    let scene = crate::ai::compile_plan(&plan)?;
+    validate_scene(&scene)?;
+
+    let frame_index = args
+        .frame
+        .unwrap_or_else(|| scene.timeline.frames.saturating_sub(1));
+    let frame = compose_frame(&scene, frame_index)?;
+
+    let format = args.format;
+    let path = args.output.unwrap_or_else(|| {
+        PathBuf::from(format!("{}.{}", slugify(&title), static_extension(format)))
+    });
+    ensure_parent(&path)?;
+    write_static(
+        &frame,
+        format,
+        &render_options(&scene, &settings, 1.0),
+        &path,
+    )?;
+
+    report_make(
+        json,
+        &MakeReport {
+            path: &path,
+            format,
+            scene: &scene,
+            frame: frame_index,
+            template: args.template,
+            title: &title,
+            tagline: tagline.as_deref(),
+            seed: args.seed,
+        },
+    )
+}
+
+fn write_static(
+    frame: &Frame,
+    format: OutputFormat,
+    options: &RenderOptions,
+    path: &Path,
+) -> Result<()> {
+    match format {
+        OutputFormat::Png => raster::render_png(frame, options, path)?,
+        OutputFormat::Jpeg => raster::render_jpeg(frame, options, path)?,
+        OutputFormat::Svg => {
+            let document = svg::render_svg(frame, options)?;
+            fs::write(path, document)
+                .with_context(|| format!("failed to write {}", path.display()))?;
+        }
+        other => bail!(
+            "format `{}` is not a static image format",
+            format_name(other)
+        ),
+    }
+    Ok(())
+}
+
+/// Filename extension used by `make` for a static format.
+fn static_extension(format: OutputFormat) -> &'static str {
+    match format {
+        OutputFormat::Jpeg => "jpg",
+        OutputFormat::Svg => "svg",
+        _ => "png",
+    }
+}
+
+struct MakeReport<'a> {
+    path: &'a Path,
+    format: OutputFormat,
+    scene: &'a Scene,
+    frame: u32,
+    template: TemplateArg,
+    title: &'a str,
+    tagline: Option<&'a str>,
+    seed: u64,
+}
+
+fn report_make(json: bool, report: &MakeReport<'_>) -> Result<()> {
+    if json {
+        print_json(&serde_json::json!({
+            "output": report.path.display().to_string(),
+            "format": format_name(report.format),
+            "width": report.scene.output.width,
+            "height": report.scene.output.height,
+            "template": report.template.as_str(),
+            "title": report.title,
+            "tagline": report.tagline,
+            "seed": report.seed,
+            "frame": report.frame,
+            "frames": report.scene.timeline.frames,
+        }))
+    } else {
+        println!(
+            "wrote {} ({}x{}, {}, frame {}/{})",
+            report.path.display(),
+            report.scene.output.width,
+            report.scene.output.height,
+            report.template.as_str(),
+            report.frame,
+            report.scene.timeline.frames
+        );
+        Ok(())
+    }
+}
+
+const MAX_SLUG_LEN: usize = 48;
+
+const ACCENT_FOLDS: &[(char, char)] = &[
+    ('á', 'a'),
+    ('é', 'e'),
+    ('í', 'i'),
+    ('ó', 'o'),
+    ('ú', 'u'),
+    ('ü', 'u'),
+    ('ñ', 'n'),
+    ('ç', 'c'),
+];
+
+fn fold_accent(character: char) -> char {
+    ACCENT_FOLDS
+        .iter()
+        .find_map(|(accented, plain)| (*accented == character).then_some(*plain))
+        .unwrap_or(character)
+}
+
+/// Build a filename-safe slug from a title.
+fn slugify(title: &str) -> String {
+    let mut slug = String::new();
+    let mut separator = false;
+    for raw in title.chars() {
+        let character = raw.to_lowercase().next().unwrap_or(raw);
+        let character = fold_accent(character);
+        if character.is_ascii_alphanumeric() {
+            if separator && !slug.is_empty() {
+                slug.push('-');
+            }
+            separator = false;
+            slug.push(character);
+        } else {
+            separator = true;
+        }
+    }
+
+    if slug.len() > MAX_SLUG_LEN {
+        slug.truncate(MAX_SLUG_LEN);
+        slug = slug.trim_end_matches('-').to_string();
+    }
+    if slug.is_empty() {
+        "image".to_string()
+    } else {
+        slug
+    }
 }
 
 fn run_render(args: RenderArgs, json: bool, no_color: bool) -> Result<()> {
